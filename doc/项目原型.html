@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网上菜谱分享平台 - 原型演示</title>
+    <!-- 引入 Tailwind CSS 用于样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 引入 Lucide 图标库 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* 简单的淡入淡出动画 */
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<div id="app" v-cloak>
+    <!-- 导航栏 -->
+    <nav v-if="currentView !== 'login'" class="bg-orange-500 text-white p-4 shadow-md sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="font-bold text-xl flex items-center gap-2 cursor-pointer hover:opacity-90" @click="currentView = 'home'">
+                <i data-lucide="chef-hat" class="w-7 h-7"></i>
+                <span>香喷喷菜谱网</span>
+            </div>
+            
+            <div class="flex items-center gap-4 text-sm">
+                <template v-if="currentUser">
+                    <span class="hidden md:inline">欢迎, {{ currentUser.username }}</span>
+                    <button v-if="currentUser.role === 'admin'" @click="currentView = 'admin'" class="bg-orange-700 px-3 py-1 rounded hover:bg-orange-800 transition">
+                        后台管理
+                    </button>
+                    <button v-else @click="currentView = 'profile'" class="hover:bg-orange-600 p-2 rounded-full transition">
+                        <i data-lucide="user" class="w-6 h-6"></i>
+                    </button>
+                    <button @click="handleLogout" class="hover:text-red-200 transition" title="退出登录">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </template>
+                <template v-else>
+                    <button @click="currentView = 'login'" class="bg-white text-orange-600 px-4 py-1.5 rounded-full font-bold hover:bg-orange-50 transition shadow-sm">
+                        登录/注册
+                    </button>
+                </template>
+            </div>
+        </div>
+    </nav>
+
+    <div class="pt-6 pb-20">
+        <!-- 1. 登录视图 -->
+        <div v-if="currentView === 'login'" class="min-h-[80vh] flex items-center justify-center p-4">
+            <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border-t-4 border-orange-500">
+                <h2 class="text-3xl font-bold text-center text-orange-600 mb-8">欢迎来到美食世界</h2>
+                <div class="space-y-4">
+                    <button @click="handleLogin('user')" class="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 transition flex items-center justify-center gap-2 font-medium">
+                        <i data-lucide="user" class="w-5 h-5"></i> 我是普通用户 (小厨神)
+                    </button>
+                    <button @click="handleLogin('admin')" class="w-full bg-gray-700 text-white py-3 rounded-lg hover:bg-gray-800 transition flex items-center justify-center gap-2 font-medium">
+                        <i data-lucide="shield" class="w-5 h-5"></i> 我是管理员
+                    </button>
+                    <button @click="handleLogin('visitor')" class="w-full border border-gray-300 text-gray-600 py-3 rounded-lg hover:bg-gray-50 transition font-medium">
+                        游客浏览
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 首页视图 -->
+        <div v-if="currentView === 'home'" class="max-w-6xl mx-auto p-4 space-y-6">
+            <!-- 搜索与分类 -->
+            <div class="bg-white p-4 rounded-xl shadow-sm space-y-4">
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-3 text-gray-400 w-5 h-5"></i>
+                    <input 
+                        type="text" 
+                        v-model="searchQuery"
+                        placeholder="搜索菜谱名称..." 
+                        class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300 transition"
+                    >
+                </div>
+                <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                    <button 
+                        v-for="cat in categories" 
+                        :key="cat"
+                        @click="filterCategory = cat"
+                        :class="['px-4 py-1.5 rounded-full text-sm whitespace-nowrap transition', filterCategory === cat ? 'bg-orange-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']"
+                    >
+                        {{ cat }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- 菜谱列表 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                <div 
+                    v-for="recipe in filteredRecipes" 
+                    :key="recipe.id" 
+                    @click="viewRecipeDetail(recipe)"
+                    class="bg-white rounded-xl shadow-sm hover:shadow-lg transition cursor-pointer overflow-hidden group border border-transparent hover:border-orange-100"
+                >
+                    <div class="h-48 overflow-hidden relative">
+                        <img :src="recipe.image" :alt="recipe.title" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                        <div class="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
+                            <i data-lucide="eye" class="w-3 h-3"></i> 1.2k
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded font-medium">{{ recipe.category }}</span>
+                            <div class="flex items-center text-gray-400 text-xs gap-1">
+                                <i data-lucide="message-circle" class="w-3 h-3"></i> {{ recipe.comments.length }}
+                            </div>
+                        </div>
+                        <h3 class="font-bold text-gray-800 mb-2 truncate text-lg">{{ recipe.title }}</h3>
+                        <div class="flex items-center gap-2 text-sm text-gray-500">
+                            <span class="bg-gray-100 rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-sm">
+                                {{ getAuthor(recipe.authorId).avatar }}
+                            </span>
+                            <span class="truncate">{{ getAuthor(recipe.authorId).username }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div v-if="filteredRecipes.length === 0" class="col-span-full text-center py-20 text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
+                    <i data-lucide="frown" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                    <p>没有找到相关菜谱</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 详情视图 -->
+        <div v-if="currentView === 'detail' && selectedRecipe" class="max-w-4xl mx-auto p-4">
+            <div class="bg-white min-h-screen shadow-lg rounded-xl overflow-hidden pb-8">
+                <div class="p-4 border-b">
+                    <button @click="currentView = 'home'" class="flex items-center text-gray-500 hover:text-orange-500 transition font-medium text-sm">
+                        <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> 返回首页
+                    </button>
+                </div>
+
+                <div class="relative h-80">
+                    <img :src="selectedRecipe.image" :alt="selectedRecipe.title" class="w-full h-full object-cover">
+                    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6 text-white">
+                        <h1 class="text-4xl font-bold mb-2 text-shadow">{{ selectedRecipe.title }}</h1>
+                        <div class="flex items-center gap-4 text-sm opacity-90">
+                            <span class="bg-orange-500 px-2 py-0.5 rounded">{{ selectedRecipe.category }}</span>
+                            <span><i data-lucide="clock" class="inline w-4 h-4 mr-1"></i> {{ selectedRecipe.publishTime }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-8">
+                         <!-- 作者信息 -->
+                        <div class="flex items-center gap-3">
+                            <div class="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center text-3xl shadow-md border-2 border-white">
+                                {{ getAuthor(selectedRecipe.authorId).avatar }}
+                            </div>
+                            <div>
+                                <div class="font-bold text-gray-800 text-lg">{{ getAuthor(selectedRecipe.authorId).username }}</div>
+                                <div class="text-xs text-gray-500">{{ getAuthor(selectedRecipe.authorId).bio }}</div>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2" v-if="currentUser">
+                            <!-- 收藏按钮 -->
+                            <button 
+                                @click="toggleFavorite(selectedRecipe.id)"
+                                :class="['p-3 rounded-full border transition', isFavorite(selectedRecipe.id) ? 'bg-red-50 border-red-200 text-red-500' : 'border-gray-200 text-gray-400 hover:bg-gray-50']"
+                                title="收藏"
+                            >
+                                <i data-lucide="heart" :class="['w-5 h-5', isFavorite(selectedRecipe.id) ? 'fill-current' : '']"></i>
+                            </button>
+                            
+                            <!-- 关注按钮 (如果不是自己) -->
+                            <template v-if="currentUser.id !== selectedRecipe.authorId">
+                                <button 
+                                    @click="toggleFollow(selectedRecipe.authorId)"
+                                    :class="['px-5 py-2 text-sm rounded-full transition font-medium', isFollowing(selectedRecipe.authorId) ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-orange-500 text-white hover:bg-orange-600 shadow-md']"
+                                >
+                                    {{ isFollowing(selectedRecipe.authorId) ? '已关注' : '+ 关注' }}
+                                </button>
+                                <button 
+                                    v-if="isFollowing(selectedRecipe.authorId)"
+                                    @click="startChat(getAuthor(selectedRecipe.authorId))"
+                                    class="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full border border-gray-200 transition"
+                                    title="私信"
+                                >
+                                    <i data-lucide="message-circle" class="w-5 h-5"></i>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-10">
+                        <!-- 用料 -->
+                        <div class="bg-orange-50 p-6 rounded-xl h-fit">
+                            <h3 class="font-bold text-lg mb-4 flex items-center gap-2 text-gray-800">
+                                <span class="w-1.5 h-6 bg-orange-500 rounded-full"></span> 用料清单
+                            </h3>
+                            <ul class="space-y-3">
+                                <li v-for="(m, idx) in selectedRecipe.materials" :key="idx" class="flex justify-between border-b border-orange-200 pb-2 text-sm">
+                                    <span class="font-medium text-gray-700">{{ m.split(' ')[0] }}</span>
+                                    <span class="text-gray-500">{{ m.split(' ')[1] || '适量' }}</span>
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <!-- 步骤 -->
+                        <div>
+                            <h3 class="font-bold text-lg mb-4 flex items-center gap-2 text-gray-800">
+                                <span class="w-1.5 h-6 bg-orange-500 rounded-full"></span> 烹饪步骤
+                            </h3>
+                            <div class="space-y-8">
+                                <div v-for="(step, idx) in selectedRecipe.steps" :key="idx" class="flex gap-4 group">
+                                    <div class="text-3xl font-black text-orange-200 group-hover:text-orange-400 transition select-none">0{{ idx + 1 }}</div>
+                                    <div>
+                                        <p class="text-gray-700 leading-relaxed text-base">{{ step.text }}</p>
+                                        <div v-if="step.img" class="mt-3 rounded-lg w-32 h-24 bg-gray-200"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 评论区 -->
+                <div class="border-t border-gray-100 p-6 bg-gray-50/50">
+                    <h3 class="font-bold text-lg mb-6 flex items-center gap-2">
+                        评论 <span class="text-gray-400 text-sm font-normal">({{ selectedRecipe.comments.length }})</span>
+                    </h3>
+                    <div class="space-y-6 mb-8">
+                        <div v-for="comment in selectedRecipe.comments" :key="comment.id" class="flex gap-4">
+                            <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-lg shadow-sm border">
+                                {{ getAuthor(comment.userId).avatar }}
+                            </div>
+                            <div class="flex-1 bg-white p-3 rounded-lg rounded-tl-none shadow-sm border border-gray-100">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-sm font-bold text-gray-800">{{ getAuthor(comment.userId).username }}</span>
+                                    <span class="text-xs text-gray-400">{{ comment.time }}</span>
+                                </div>
+                                <p class="text-gray-600 text-sm">{{ comment.text }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div v-if="currentUser" class="flex gap-2 items-center bg-white p-2 rounded-full border shadow-sm">
+                        <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm">{{ currentUser.avatar }}</div>
+                        <input type="text" placeholder="分享你的看法..." class="flex-1 px-2 py-1 text-sm focus:outline-none bg-transparent">
+                        <button class="bg-orange-500 text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-orange-600 transition">发送</button>
+                    </div>
+                    <div v-else class="text-center text-gray-500 py-4 bg-gray-100 rounded-lg text-sm">
+                        请 <span class="text-orange-500 cursor-pointer hover:underline" @click="currentView = 'login'">登录</span> 后参与评论
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 个人中心视图 -->
+        <div v-if="currentView === 'profile'" class="max-w-6xl mx-auto p-4 flex flex-col md:flex-row gap-6">
+            <!-- 侧边栏 -->
+            <div class="w-full md:w-64 bg-white rounded-xl shadow-sm p-6 h-fit">
+                <div class="text-center mb-6">
+                    <div class="w-20 h-20 bg-orange-100 rounded-full mx-auto flex items-center justify-center text-4xl mb-3 shadow-inner">
+                        {{ currentUser.avatar }}
+                    </div>
+                    <h2 class="font-bold text-lg text-gray-800">{{ currentUser.username }}</h2>
+                    <p class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full inline-block mt-1">ID: {{ currentUser.id }}</p>
+                </div>
+                <div class="space-y-1">
+                    <button 
+                        v-for="item in profileTabs" 
+                        :key="item.id"
+                        @click="activeProfileTab = item.id"
+                        :class="['w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition font-medium', activeProfileTab === item.id ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50']"
+                    >
+                        <i :data-lucide="item.icon" class="w-4 h-4"></i>
+                        {{ item.label }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- 个人中心内容区 -->
+            <div class="flex-1 bg-white rounded-xl shadow-sm p-6 min-h-[500px]">
+                <!-- 我的菜谱 -->
+                <div v-if="activeProfileTab === 'recipes'">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-bold text-xl text-gray-800">我的发布 ({{ myRecipes.length }})</h3>
+                        <button @click="currentView = 'create'" class="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-orange-600 shadow-sm transition">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i> 发布新菜谱
+                        </button>
+                    </div>
+                    <div class="space-y-4">
+                        <div v-for="r in myRecipes" :key="r.id" class="flex gap-4 border border-gray-100 p-3 rounded-xl hover:border-orange-200 transition relative bg-white hover:shadow-sm">
+                            <img :src="r.image" class="w-24 h-24 object-cover rounded-lg bg-gray-200">
+                            <div class="flex-1 py-1">
+                                <div class="flex justify-between items-start">
+                                    <h4 class="font-bold text-gray-800">{{ r.title }}</h4>
+                                    <!-- 状态标签 -->
+                                    <span v-if="r.status === 1" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">已发布</span>
+                                    <span v-else-if="r.status === 0" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded font-medium">审核中</span>
+                                    <div v-else class="text-right">
+                                        <span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-medium">未通过</span>
+                                        <p class="text-[10px] text-red-500 mt-1">{{ r.rejectReason }}</p>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-2">发布于: {{ r.publishTime }}</p>
+                                
+                                <div class="absolute bottom-3 right-3 flex gap-2">
+                                    <button v-if="r.status !== 1" class="text-blue-500 hover:bg-blue-50 p-1.5 rounded text-xs flex items-center gap-1 transition">
+                                        <i data-lucide="edit-2" class="w-3 h-3"></i> 编辑
+                                    </button>
+                                    <button @click="deleteRecipe(r.id)" class="text-gray-400 hover:text-red-500 p-1.5 rounded transition">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 消息中心 (私信) -->
+                <div v-if="activeProfileTab === 'chat'" class="h-full flex flex-col">
+                    <h3 class="font-bold text-xl mb-4 text-gray-800">消息中心</h3>
+                    <div class="flex-1 border rounded-xl flex overflow-hidden h-[400px]">
+                        <!-- 好友列表 -->
+                        <div class="w-1/3 border-r bg-gray-50 overflow-y-auto">
+                            <div 
+                                v-for="uid in myFollows" 
+                                :key="uid" 
+                                @click="chatTarget = getAuthor(uid)"
+                                :class="['p-3 flex items-center gap-3 cursor-pointer border-b transition', chatTarget?.id === uid ? 'bg-white border-l-4 border-l-orange-500' : 'hover:bg-gray-100 border-l-4 border-l-transparent']"
+                            >
+                                <span class="text-xl">{{ getAuthor(uid).avatar }}</span>
+                                <span class="text-sm font-medium truncate">{{ getAuthor(uid).username }}</span>
+                            </div>
+                            <div v-if="myFollows.length === 0" class="p-4 text-xs text-gray-400 text-center">
+                                暂无关注的人
+                            </div>
+                        </div>
+                        
+                        <!-- 聊天窗口 -->
+                        <div class="flex-1 flex flex-col bg-white">
+                            <template v-if="chatTarget">
+                                <div class="p-3 border-b font-bold flex items-center justify-between bg-gray-50">
+                                    <span class="flex items-center gap-2">
+                                        <span class="text-lg">{{ chatTarget.avatar }}</span> {{ chatTarget.username }}
+                                    </span>
+                                    <button @click="chatTarget = null" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+                                </div>
+                                <div class="flex-1 p-4 space-y-4 overflow-y-auto bg-gray-50/30">
+                                    <div class="flex justify-start">
+                                        <div class="bg-white border p-2 rounded-2xl rounded-tl-none max-w-[80%] text-sm shadow-sm">
+                                            你好，我很喜欢你的{{ myRecipes[0]?.title || '菜谱' }}！
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-end">
+                                        <div class="bg-orange-500 text-white p-2 rounded-2xl rounded-tr-none max-w-[80%] text-sm shadow-md">
+                                            谢谢支持！下次试试加点蜂蜜。
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-3 border-t flex gap-2">
+                                    <input class="flex-1 border rounded-full px-4 py-2 text-sm focus:outline-none focus:border-orange-500" placeholder="输入消息...">
+                                    <button class="text-orange-500 hover:bg-orange-50 p-2 rounded-full transition"><i data-lucide="send" class="w-5 h-5"></i></button>
+                                </div>
+                            </template>
+                            <template v-else>
+                                <div class="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm">
+                                    <i data-lucide="message-square" class="w-12 h-12 mb-2 opacity-20"></i>
+                                    选择一个左侧的好友开始聊天
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 占位页面 -->
+                <div v-if="['favorites', 'following', 'settings'].includes(activeProfileTab)" class="flex flex-col items-center justify-center h-64 text-gray-400">
+                    <div class="bg-gray-100 p-6 rounded-full mb-4">
+                        <i data-lucide="construction" class="w-8 h-8 opacity-50"></i>
+                    </div>
+                    <p class="font-medium">此处展示{{ profileTabs.find(t => t.id === activeProfileTab).label }}</p>
+                    <p class="text-xs mt-1 text-gray-300">（原型展示，逻辑结构同“我的菜谱”）</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. 管理员工作台 -->
+        <div v-if="currentView === 'admin'" class="max-w-6xl mx-auto p-4">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800 pl-2 border-l-4 border-gray-800">管理员工作台</h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 审核列表 -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border-t-4 border-orange-500">
+                        <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+                            <span class="relative flex h-3 w-3">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span>
+                            </span>
+                            待审核菜谱 ({{ pendingRecipes.length }})
+                        </h3>
+                        
+                        <div class="space-y-4">
+                            <div v-if="pendingRecipes.length === 0" class="text-gray-400 text-sm py-8 text-center bg-gray-50 rounded-lg">
+                                暂无待审核内容，去喝杯茶吧 🍵
+                            </div>
+                            <div v-for="r in pendingRecipes" :key="r.id" class="border p-4 rounded-xl flex gap-4 hover:shadow-md transition bg-white">
+                                <img :src="r.image" class="w-24 h-24 object-cover rounded-lg bg-gray-200">
+                                <div class="flex-1">
+                                    <div class="flex justify-between">
+                                        <h4 class="font-bold text-lg text-gray-800">{{ r.title }}</h4>
+                                        <span class="text-xs text-gray-400">{{ r.publishTime }}</span>
+                                    </div>
+                                    <p class="text-sm text-gray-600 mb-3 mt-1">
+                                        <span class="bg-gray-100 px-2 py-0.5 rounded text-xs mr-2">{{ r.category }}</span>
+                                        发布者: {{ getAuthor(r.authorId).username }}
+                                    </p>
+                                    
+                                    <div class="flex gap-2">
+                                        <button @click="viewRecipeDetail(r)" class="text-sm bg-gray-100 px-3 py-1.5 rounded hover:bg-gray-200 transition">详情</button>
+                                        <button @click="updateStatus(r.id, 1)" class="text-sm bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 flex items-center gap-1 transition shadow-sm font-medium">
+                                            <i data-lucide="check" class="w-3 h-3"></i> 通过
+                                        </button>
+                                        <button @click="rejectRecipe(r.id)" class="text-sm bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded hover:bg-red-100 flex items-center gap-1 transition font-medium">
+                                            <i data-lucide="x" class="w-3 h-3"></i> 驳回
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 快捷菜单 -->
+                <div class="space-y-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="font-bold text-lg mb-4 text-gray-800">快捷管理</h3>
+                        <div class="space-y-2">
+                            <button class="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg text-sm text-gray-600 transition flex items-center gap-2">
+                                <i data-lucide="users" class="w-4 h-4"></i> 用户管理
+                            </button>
+                            <button class="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg text-sm text-gray-600 transition flex items-center gap-2">
+                                <i data-lucide="tag" class="w-4 h-4"></i> 分类管理
+                            </button>
+                            <button class="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg text-sm text-gray-600 transition flex items-center gap-2">
+                                <i data-lucide="alert-circle" class="w-4 h-4"></i> 举报处理
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. 发布菜谱视图 -->
+        <div v-if="currentView === 'create'" class="max-w-2xl mx-auto p-4">
+            <div class="bg-white p-8 rounded-2xl shadow-lg">
+                <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                    <i data-lucide="pen-tool" class="w-6 h-6 text-orange-500"></i> 发布新菜谱
+                </h2>
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">菜谱名称</label>
+                        <input type="text" class="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-200 outline-none transition" placeholder="例如：宫保鸡丁">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">所属分类</label>
+                        <select class="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-200 outline-none bg-white">
+                            <option v-for="c in categories.slice(1)" :key="c">{{ c }}</option>
+                        </select>
+                    </div>
+                    <div class="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center text-gray-400 hover:border-orange-400 hover:text-orange-500 transition cursor-pointer bg-gray-50">
+                        <i data-lucide="image" class="w-8 h-8 mx-auto mb-2"></i>
+                        <p>点击上传成品图</p>
+                    </div>
+                    <div>
+                         <label class="block text-sm font-bold text-gray-700 mb-2">用料 & 步骤</label>
+                         <p class="text-xs text-gray-500 mb-2 bg-blue-50 text-blue-600 p-2 rounded">此处为原型演示，实际开发时建议使用动态添加的表单项。</p>
+                         <textarea class="w-full border rounded-lg px-4 py-2 h-32 focus:ring-2 focus:ring-orange-200 outline-none transition resize-none" placeholder="输入制作步骤..."></textarea>
+                    </div>
+                    <div class="flex gap-4 mt-8">
+                        <button 
+                            @click="showToast('提交成功，请等待管理员审核'); currentView = 'profile'"
+                            class="flex-1 bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 font-bold shadow-md transition"
+                        >
+                            提交审核
+                        </button>
+                        <button 
+                            @click="currentView = 'profile'"
+                            class="px-8 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 font-medium transition"
+                        >
+                            取消
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 简单的 Toast 提示组件 -->
+    <div v-if="toastMsg" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg z-[100] text-sm flex items-center gap-2 animate-bounce">
+        <i data-lucide="info" class="w-4 h-4"></i> {{ toastMsg }}
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, computed, onUpdated } = Vue;
+
+    createApp({
+        setup() {
+            // --- 模拟数据 ---
+            const users = [
+                { id: 1, username: '小厨神', avatar: '👨‍🍳', role: 'user', bio: '热爱美食，热爱生活' },
+                { id: 2, username: '甜点爱丽丝', avatar: '👩‍🍳', role: 'user', bio: '专注于法式甜点' },
+                { id: 99, username: '系统管理员', avatar: '🛡️', role: 'admin', bio: '系统维护' }
+            ];
+
+            const initialRecipes = [
+                {
+                    id: 101, title: '红烧肉', image: 'https://images.unsplash.com/photo-1606728035253-49e8a23146de?w=500&auto=format&fit=crop&q=60', authorId: 1, category: '肉类', status: 1,
+                    materials: ['五花肉 500g', '冰糖 20g', '生抽 2勺'], steps: [{ text: '五花肉切块焯水', img: null }, { text: '炖煮40分钟收汁', img: null }],
+                    comments: [{ id: 1, userId: 2, text: '看起来太好吃了！', time: '2023-10-01' }], publishTime: '2023-10-01'
+                },
+                {
+                    id: 102, title: '草莓蛋糕', image: 'https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=500&auto=format&fit=crop&q=60', authorId: 2, category: '甜品', status: 1,
+                    materials: ['草莓 10个', '奶油 200g'], steps: [{ text: '烤制蛋糕胚', img: null }, { text: '抹奶油放草莓', img: null }],
+                    comments: [], publishTime: '2023-10-02'
+                },
+                {
+                    id: 104, title: '清炒时蔬', image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500&auto=format&fit=crop&q=60', authorId: 1, category: '素菜', status: 0,
+                    materials: ['青菜 500g'], steps: [{ text: '大火快炒', img: null }], comments: [], publishTime: '2023-10-06'
+                }
+            ];
+
+            // --- 状态变量 ---
+            const currentUser = ref(null);
+            const currentView = ref('login');
+            const recipes = ref(initialRecipes);
+            const selectedRecipe = ref(null);
+            const searchQuery = ref('');
+            const filterCategory = ref('全部');
+            const categories = ['全部', '甜品', '素菜', '肉类', '汤类', '主食'];
+            
+            // 社交状态
+            const myFollows = ref([2]); // 关注的 ID
+            const myFavorites = ref([102]); // 收藏的 ID
+            const chatTarget = ref(null);
+            const activeProfileTab = ref('recipes');
+            const toastMsg = ref('');
+
+            // --- 计算属性 ---
+            const filteredRecipes = computed(() => {
+                return recipes.value.filter(r => 
+                    r.status === 1 &&
+                    (filterCategory.value === '全部' || r.category === filterCategory.value) &&
+                    (r.title.includes(searchQuery.value) || r.category.includes(searchQuery.value))
+                );
+            });
+
+            const myRecipes = computed(() => recipes.value.filter(r => currentUser.value && r.authorId === currentUser.value.id));
+            const pendingRecipes = computed(() => recipes.value.filter(r => r.status === 0));
+
+            const profileTabs = [
+                { id: 'recipes', icon: 'chef-hat', label: '我的菜谱' },
+                { id: 'favorites', icon: 'heart', label: '我的收藏' },
+                { id: 'following', icon: 'user', label: '我的关注' },
+                { id: 'chat', icon: 'message-circle', label: '私信消息' },
+                { id: 'settings', icon: 'settings', label: '个人信息' },
+            ];
+
+            // --- 方法 ---
+            const getAuthor = (id) => users.find(u => u.id === id) || { username: '未知', avatar: '?' };
+
+            const handleLogin = (role) => {
+                if (role === 'visitor') currentUser.value = null;
+                else currentUser.value = users.find(u => u.role === role);
+                currentView.value = 'home';
+                showToast(role === 'visitor' ? '欢迎游客访问' : `欢迎回来, ${currentUser.value.username}`);
+            };
+
+            const handleLogout = () => {
+                if(confirm('确定要退出登录吗？')) {
+                    currentUser.value = null;
+                    currentView.value = 'login';
+                }
+            };
+
+            const viewRecipeDetail = (recipe) => {
+                selectedRecipe.value = recipe;
+                currentView.value = 'detail';
+            };
+
+            const toggleFavorite = (id) => {
+                if (myFavorites.value.includes(id)) {
+                    myFavorites.value = myFavorites.value.filter(fid => fid !== id);
+                    showToast('已取消收藏');
+                } else {
+                    myFavorites.value.push(id);
+                    showToast('已加入收藏夹');
+                }
+            };
+
+            const isFavorite = (id) => myFavorites.value.includes(id);
+
+            const toggleFollow = (id) => {
+                if (myFollows.value.includes(id)) {
+                    myFollows.value = myFollows.value.filter(fid => fid !== id);
+                    showToast('已取消关注');
+                } else {
+                    myFollows.value.push(id);
+                    showToast('关注成功');
+                }
+            };
+
+            const isFollowing = (id) => myFollows.value.includes(id);
+
+            const startChat = (user) => {
+                chatTarget.value = user;
+                activeProfileTab.value = 'chat';
+                currentView.value = 'profile';
+            };
+
+            const updateStatus = (id, status, reason = '') => {
+                const idx = recipes.value.findIndex(r => r.id === id);
+                if (idx !== -1) {
+                    recipes.value[idx].status = status;
+                    recipes.value[idx].rejectReason = reason;
+                    showToast(status === 1 ? '已通过审核' : '已驳回');
+                }
+            };
+
+            const rejectRecipe = (id) => {
+                const reason = prompt("请输入驳回原因:");
+                if (reason) updateStatus(id, 2, reason);
+            };
+
+            const deleteRecipe = (id) => {
+                if(confirm('确定删除该菜谱吗？')) {
+                    recipes.value = recipes.value.filter(r => r.id !== id);
+                    showToast('删除成功');
+                }
+            };
+
+            const showToast = (msg) => {
+                toastMsg.value = msg;
+                setTimeout(() => toastMsg.value = '', 2000);
+            };
+
+            // 每次视图更新后重新渲染图标
+            onUpdated(() => {
+                lucide.createIcons();
+            });
+
+            return {
+                currentUser, currentView, recipes, selectedRecipe, searchQuery,
+                filterCategory, categories, myFollows, myFavorites, chatTarget,
+                activeProfileTab, toastMsg, filteredRecipes, myRecipes, pendingRecipes,
+                profileTabs, getAuthor, handleLogin, handleLogout, viewRecipeDetail,
+                toggleFavorite, isFavorite, toggleFollow, isFollowing, startChat,
+                updateStatus, rejectRecipe, deleteRecipe, showToast
+            };
+        },
+        mounted() {
+            lucide.createIcons(); // 初始化图标
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
