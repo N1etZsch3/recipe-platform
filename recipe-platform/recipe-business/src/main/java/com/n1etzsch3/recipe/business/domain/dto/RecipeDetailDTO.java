@@ -12,6 +12,7 @@ public class RecipeDetailDTO {
     private Long id;
     private String title;
     private Long userId;
+    private Long authorId; // 作者ID
     private String authorName; // 需要关联查询
     private String authorAvatar;
     private Integer categoryId;
@@ -19,6 +20,7 @@ public class RecipeDetailDTO {
     private String coverImage;
     private String description;
     private Integer status;
+    private String rejectReason; // 驳回原因
     private Integer viewCount;
     private Integer commentCount; // 评论数
     private Integer favoriteCount; // 收藏数

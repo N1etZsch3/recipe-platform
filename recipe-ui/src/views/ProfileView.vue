@@ -3,6 +3,7 @@ import { ref, onMounted, watch } from 'vue' // Added watch
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useToast } from '../components/Toast.vue'
+import { useModal } from '@/composables/useModal'
 import { listRecipies, deleteRecipe as deleteRecipeApi, unpublishRecipe as unpublishRecipeApi } from '@/api/recipe'
 import { updateProfile, getProfile } from '@/api/auth'
 import { uploadFile } from '@/api/common'
@@ -14,6 +15,7 @@ import { ChefHat, Heart, User, MessageCircle, Settings, Edit2, Trash2, X, Send, 
 const router = useRouter()
 const userStore = useUserStore()
 const { showToast } = useToast()
+const { confirm } = useModal()
 
 const activeProfileTab = ref('recipes')
 const chatTarget = ref(null)
@@ -178,7 +180,8 @@ const loadMyFollows = async () => {
 
 // 取消关注
 const handleUnfollow = async (userId) => {
-    if (confirm('确定取消关注吗？')) {
+    const confirmed = await confirm('确定取消关注吗？')
+    if (confirmed) {
         try {
             await unfollowUser(userId)
             myFollows.value = myFollows.value.filter(u => u.id !== userId)
@@ -207,7 +210,8 @@ onMounted(() => {
 })
 
 const deleteRecipe = async (id) => {
-    if (confirm('确定删除该菜谱吗？')) {
+    const confirmed = await confirm('确定删除该菜谱吗？', { danger: true })
+    if (confirmed) {
         try {
             await deleteRecipeApi(id)
             myRecipes.value = myRecipes.value.filter(r => r.id !== id)
@@ -220,7 +224,8 @@ const deleteRecipe = async (id) => {
 
 // 下架菜谱
 const unpublishRecipe = async (id) => {
-    if (confirm('下架后菜谱将变为待审核状态，您可以进行编辑。确定下架吗？')) {
+    const confirmed = await confirm('下架后菜谱将变为待审核状态，您可以进行编辑。确定下架吗？')
+    if (confirmed) {
         try {
             await unpublishRecipeApi(id)
             // 更新本地状态

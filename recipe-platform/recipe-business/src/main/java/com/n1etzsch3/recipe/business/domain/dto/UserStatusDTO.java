@@ -4,6 +4,6 @@ import lombok.Data;
 
 @Data
 public class UserStatusDTO {
-    // 0: normal, 1: disabled
+    // 0: normal(正常), 1: disabled(封禁)
     private Integer status;
 }

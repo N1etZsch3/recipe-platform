@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useToast } from '../components/Toast.vue'
+import { useModal } from '@/composables/useModal'
 import { getRecipeDetail } from '@/api/recipe'
 import { getComments, commentRecipe, likeRecipe, followUser, unfollowUser, likeComment, getReplies, deleteComment } from '@/api/social'
 import { ArrowLeft, Clock, Heart, MessageCircle, Send, ThumbsUp, Reply, ChevronDown, Trash2 } from 'lucide-vue-next'
@@ -11,6 +12,7 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const { showToast } = useToast()
+const { confirm } = useModal()
 
 const selectedRecipe = ref(null)
 const comments = ref([])
@@ -200,7 +202,8 @@ const collapseReplies = (comment) => {
 
 // 删除评论
 const handleDeleteComment = async (comment, parentComment = null) => {
-    if (!confirm('确定要删除这条评论吗？')) return
+    const confirmed = await confirm('确定要删除这条评论吗？', { danger: true })
+    if (!confirmed) return
     try {
         await deleteComment(comment.id)
         showToast('删除成功')

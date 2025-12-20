@@ -125,10 +125,10 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void sendNewRecipePending(Long recipeId, String recipeTitle, Long authorId, String authorName) {
-        // 查询所有管理员
+        // 查询所有管理员 (status = 0 表示正常状态)
         List<SysUser> admins = sysUserMapper.selectList(new LambdaQueryWrapper<SysUser>()
                 .eq(SysUser::getRole, "admin")
-                .eq(SysUser::getStatus, 1)); // 正常状态的管理员
+                .eq(SysUser::getStatus, 0)); // 0=正常, 1=封禁
 
         if (admins.isEmpty()) {
             log.warn("没有找到管理员，无法发送待审核通知");
@@ -151,5 +151,56 @@ public class NotificationServiceImpl implements NotificationService {
 
         log.info("已向 {} 位管理员发送新菜谱待审核通知: recipeId={}, title={}",
                 admins.size(), recipeId, recipeTitle);
+    }
+
+    @Override
+    public void sendCommentReply(Long originalCommenterId, Long replierId, String replierName,
+            Long recipeId, String recipeTitle, String originalContent, String replyContent) {
+        // 不通知自己
+        if (originalCommenterId.equals(replierId)) {
+            return;
+        }
+
+        // 截取预览内容
+        String originalPreview = originalContent != null && originalContent.length() > 30
+                ? originalContent.substring(0, 30) + "..."
+                : originalContent;
+        String replyPreview = replyContent != null && replyContent.length() > 50
+                ? replyContent.substring(0, 50) + "..."
+                : replyContent;
+
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.COMMENT_REPLY)
+                .title("评论被回复")
+                .content(replierName + " 回复了你的评论：" + replyPreview)
+                .relatedId(recipeId)
+                .senderId(replierId)
+                .senderName(replierName)
+                .build();
+        sendToUser(originalCommenterId, message);
+    }
+
+    @Override
+    public void sendCommentLiked(Long commentOwnerId, Long likerId, String likerName,
+            Long recipeId, String recipeTitle, String commentContent) {
+        // 不通知自己
+        if (commentOwnerId.equals(likerId)) {
+            return;
+        }
+
+        // 截取评论预览
+        String contentPreview = commentContent != null && commentContent.length() > 30
+                ? commentContent.substring(0, 30) + "..."
+                : commentContent;
+
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.COMMENT_LIKED)
+                .title("评论被点赞")
+                .content(likerName + " 赞了你的评论：" + contentPreview)
+                .relatedId(recipeId)
+                .senderId(likerId)
+                .senderName(likerName)
+                .build();
+        sendToUser(commentOwnerId, message);
     }
 }

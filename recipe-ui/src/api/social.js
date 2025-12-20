@@ -123,3 +123,59 @@ export function markRead(senderId) {
         method: 'put'
     })
 }
+
+// ============= 信息中心相关 API =============
+
+// 我的评论列表
+export function getMyComments(params) {
+    return request({
+        url: '/api/v1/interactions/my-comments',
+        method: 'get',
+        params
+    })
+}
+
+// 批量删除我的评论
+export function deleteMyComments(commentIds) {
+    return request({
+        url: '/api/v1/interactions/my-comments',
+        method: 'delete',
+        data: commentIds
+    })
+}
+
+// 回复我的评论列表
+export function getRepliesForMe(params) {
+    return request({
+        url: '/api/v1/interactions/replies-for-me',
+        method: 'get',
+        params
+    })
+}
+
+// 收到的点赞列表
+export function getLikesForMe(params) {
+    return request({
+        url: '/api/v1/interactions/likes-for-me',
+        method: 'get',
+        params
+    })
+}
+
+// 点赞详情
+export function getLikeDetail(commentId, params) {
+    return request({
+        url: `/api/v1/interactions/comments/${commentId}/likers`,
+        method: 'get',
+        params
+    })
+}
+
+// 系统通知列表
+export function getSystemNotifications(params) {
+    return request({
+        url: '/api/v1/interactions/system-notifications',
+        method: 'get',
+        params
+    })
+}

@@ -77,4 +77,31 @@ public interface NotificationService {
      * @param authorName  作者昵称
      */
     void sendNewRecipePending(Long recipeId, String recipeTitle, Long authorId, String authorName);
+
+    /**
+     * 发送评论被回复通知
+     *
+     * @param originalCommenterId 原评论作者ID
+     * @param replierId           回复者ID
+     * @param replierName         回复者昵称
+     * @param recipeId            菜谱ID
+     * @param recipeTitle         菜谱标题
+     * @param originalContent     原评论内容
+     * @param replyContent        回复内容
+     */
+    void sendCommentReply(Long originalCommenterId, Long replierId, String replierName,
+            Long recipeId, String recipeTitle, String originalContent, String replyContent);
+
+    /**
+     * 发送评论被点赞通知
+     *
+     * @param commentOwnerId 评论作者ID
+     * @param likerId        点赞者ID
+     * @param likerName      点赞者昵称
+     * @param recipeId       菜谱ID
+     * @param recipeTitle    菜谱标题
+     * @param commentContent 评论内容
+     */
+    void sendCommentLiked(Long commentOwnerId, Long likerId, String likerName,
+            Long recipeId, String recipeTitle, String commentContent);
 }

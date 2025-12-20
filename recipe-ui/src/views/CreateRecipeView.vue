@@ -212,7 +212,7 @@ const handleSubmit = async () => {
             <!-- 分类 -->
             <div>
                 <label class="block text-sm font-bold text-gray-700 mb-2">所属分类</label>
-                <select v-model="form.category" class="w-full border border-gray-200 rounded-lg px-4 py-3 focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none bg-white">
+                <select v-model="form.category" class="custom-select w-full">
                     <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
                 </select>
             </div>

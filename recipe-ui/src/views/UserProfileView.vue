@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useToast } from '../components/Toast.vue'
+import { useModal } from '@/composables/useModal'
 import { getUserProfile, followUser, unfollowUser } from '@/api/social'
 import { listRecipies } from '@/api/recipe'
 import { ArrowLeft, ChefHat, UserPlus, UserMinus, UserCheck, MessageCircle } from 'lucide-vue-next'
@@ -11,6 +12,7 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const { showToast } = useToast()
+const { confirm } = useModal()
 
 const targetUserId = route.params.id
 const userProfile = ref(null)
@@ -33,6 +35,18 @@ const loadUserProfile = async () => {
   }
 }
 
+// 解析 JSON 格式的描述，提取 intro
+const parseDescription = (description) => {
+    if (!description) return ''
+    try {
+        const data = JSON.parse(description)
+        return data.intro || ''
+    } catch {
+        // 如果不是 JSON，直接返回原文
+        return description
+    }
+}
+
 // 加载用户的菜谱
 const loadUserRecipes = async () => {
   recipesLoading.value = true
@@ -48,7 +62,7 @@ const loadUserRecipes = async () => {
       id: r.id,
       title: r.title,
       image: r.coverImage,
-      description: r.description,
+      description: parseDescription(r.description),
       authorId: r.userId,
       authorName: r.nickname,
       authorAvatar: r.avatar
@@ -71,7 +85,8 @@ const handleFollow = async () => {
   const isFollowing = userProfile.value.isFollow
   try {
     if (isFollowing) {
-        if(confirm('确定要取消关注吗？')) {
+        const confirmed = await confirm('确定要取消关注吗？')
+        if (confirmed) {
             await unfollowUser(targetUserId)
             userProfile.value.isFollow = false
             showToast('已取消关注')

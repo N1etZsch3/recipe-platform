@@ -46,12 +46,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 1. 游客 (Visitor) - 放行
                         .requestMatchers("/api/v1/users/login", "/api/v1/users/register").permitAll()
+                        .requestMatchers("/api/v1/admin/login").permitAll() // 管理员登录接口
                         .requestMatchers("/ws").permitAll() // WebSocket 端点（Token 在连接时验证）
                         .requestMatchers(HttpMethod.GET, "/api/v1/recipes/**").permitAll() // 浏览菜谱
                         .requestMatchers(HttpMethod.GET, "/api/v1/interactions/comments/**").permitAll() // 浏览评论
                         .requestMatchers("/doc.html", "/webjars/**", "/v3/api-docs/**").permitAll() // Swagger
 
-                        // 2. 管理员 (Admin)
+                        // 2. 管理员 (Admin) - 其他admin接口需要admin角色
                         .requestMatchers("/api/v1/admin/**").hasRole("admin")
 
                         // 3. 登录用户 (Member) - 其他接口需认证

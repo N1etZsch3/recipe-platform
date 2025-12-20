@@ -36,17 +36,22 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail("用户不存在");
         }
 
-        // 2. 校验密码
+        // 2. 禁止管理员通过普通接口登录
+        if (UserConstants.ROLE_ADMIN.equals(user.getRole())) {
+            return Result.fail("管理员请使用专用入口登录");
+        }
+
+        // 3. 校验密码
         if (!passwordEncoder.matches(password, user.getPassword())) {
             return Result.fail("密码错误");
         }
 
-        // 3. 校验状态 (DISABLE = 1 表示被封禁)
+        // 4. 校验状态 (DISABLE = 1 表示被封禁)
         if (user.getStatus() != null && user.getStatus() == UserConstants.DISABLE) {
             return Result.fail("账号已被封禁");
         }
 
-        // 4. 生成 Token
+        // 5. 生成 Token
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
         claims.put("username", user.getUsername());
@@ -54,7 +59,7 @@ public class AuthServiceImpl implements AuthService {
 
         String token = JwtUtils.generateToken(claims);
 
-        // 5. 构造返回数据
+        // 6. 构造返回数据
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("userId", user.getId());

@@ -40,7 +40,8 @@ const fetchPopularRecipes = async () => {
       title: r.title,
       image: r.coverImage,
       category: r.categoryName || '美味',
-      author: r.authorName || '大厨',
+      author: r.authorName || r.nickname || '大厨',
+      authorAvatar: r.authorAvatar || r.avatar,
       likes: r.viewCount || 0
     }))
   } catch (error) {
@@ -256,8 +257,9 @@ const features = [
               <h3 class="text-xl font-bold text-gray-900 mb-2 group-hover:text-orange-600 transition truncate">{{ recipe.title }}</h3>
               <div class="flex items-center justify-between border-t border-gray-50 pt-4 mt-4">
                  <div class="flex items-center gap-2">
-                   <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold border border-white shadow-sm">
-                      {{ recipe.author.charAt(0) }}
+                   <div class="w-8 h-8 rounded-full overflow-hidden bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold border border-white shadow-sm">
+                     <img v-if="recipe.authorAvatar" :src="recipe.authorAvatar" class="w-full h-full object-cover">
+                     <span v-else>{{ recipe.author.charAt(0) }}</span>
                    </div>
                    <span class="text-sm font-medium text-gray-600 truncate max-w-[100px]">{{ recipe.author }}</span>
                  </div>

@@ -4,10 +4,16 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.n1etzsch3.recipe.business.domain.dto.CommentDTO;
 import com.n1etzsch3.recipe.business.domain.dto.RecipeDetailDTO;
 import com.n1etzsch3.recipe.business.domain.vo.CommentVO;
+import com.n1etzsch3.recipe.business.domain.vo.MyCommentVO;
+import com.n1etzsch3.recipe.business.domain.vo.CommentReplyVO;
+import com.n1etzsch3.recipe.business.domain.vo.CommentLikeVO;
+import com.n1etzsch3.recipe.business.domain.vo.SystemNotificationVO;
 import com.n1etzsch3.recipe.business.service.InteractionService;
 import com.n1etzsch3.recipe.common.core.domain.Result;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/interactions")
@@ -75,5 +81,65 @@ public class InteractionController {
     @DeleteMapping("/comments/{commentId}")
     public Result<?> deleteComment(@PathVariable Long commentId) {
         return interactionService.deleteComment(commentId);
+    }
+
+    // ============= 信息中心相关 API =============
+
+    /**
+     * 我的评论列表
+     */
+    @GetMapping("/my-comments")
+    public Result<IPage<MyCommentVO>> myComments(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+        return interactionService.pageMyComments(page, size);
+    }
+
+    /**
+     * 批量删除我的评论
+     */
+    @DeleteMapping("/my-comments")
+    public Result<?> deleteMyComments(@RequestBody List<Long> commentIds) {
+        return interactionService.deleteMyComments(commentIds);
+    }
+
+    /**
+     * 回复我的评论列表
+     */
+    @GetMapping("/replies-for-me")
+    public Result<IPage<CommentReplyVO>> repliesForMe(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+        return interactionService.pageRepliesForMe(page, size);
+    }
+
+    /**
+     * 收到的点赞列表
+     */
+    @GetMapping("/likes-for-me")
+    public Result<IPage<CommentLikeVO>> likesForMe(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+        return interactionService.pageLikesForMe(page, size);
+    }
+
+    /**
+     * 点赞详情
+     */
+    @GetMapping("/comments/{commentId}/likers")
+    public Result<IPage<CommentLikeVO>> likeDetail(@PathVariable Long commentId,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer size) {
+        return interactionService.pageLikeDetail(commentId, page, size);
+    }
+
+    /**
+     * 系统通知列表
+     */
+    @GetMapping("/system-notifications")
+    public Result<IPage<SystemNotificationVO>> systemNotifications(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+        return interactionService.pageSystemNotifications(page, size);
     }
 }

@@ -3,10 +3,12 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Check, X, Users, Tag, AlertCircle } from 'lucide-vue-next'
 import { useToast } from '../components/Toast.vue'
+import { useModal } from '@/composables/useModal'
 import { listRecipies, auditRecipe } from '@/api/recipe'
 
 const router = useRouter()
 const { showToast } = useToast()
+const { confirm, prompt } = useModal()
 
 const pendingRecipes = ref([])
 const loading = ref(false)
@@ -54,13 +56,14 @@ const handleAudit = async (id, status, reason = '') => {
     }
 }
 
-const rejectRecipe = (id) => {
-    const reason = prompt("请输入驳回原因:")
+const rejectRecipe = async (id) => {
+    const reason = await prompt('请输入驳回原因:', { placeholder: '请输入驳回原因...' })
     if (reason) handleAudit(id, 2, reason)
 }
 
-const passRecipe = (id) => {
-    if (confirm('确定通过该菜谱审核吗？')) {
+const passRecipe = async (id) => {
+    const confirmed = await confirm('确定通过该菜谱审核吗？')
+    if (confirmed) {
         handleAudit(id, 1)
     }
 }

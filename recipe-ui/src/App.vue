@@ -1,19 +1,34 @@
 <script setup>
-import { RouterView } from 'vue-router'
-import { ref, provide, watch, onMounted, onUnmounted } from 'vue'
+import { RouterView, useRoute } from 'vue-router'
+import { ref, provide, watch, onMounted, onUnmounted, computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { wsManager } from '@/utils/websocket'
+import { setModalRef } from '@/composables/useModal'
 import Navbar from './components/Navbar.vue'
 import Toast from './components/Toast.vue'
 import Modal from './components/Modal.vue'
 import NotificationToast from './components/NotificationToast.vue'
 
+const route = useRoute()
 const userStore = useUserStore()
 const modalRef = ref(null)
 
+// 判断是否为管理后台路由（包括登录页和后台所有页面）
+const isAdminRoute = computed(() => {
+  return route.path.startsWith('/backstage-m9x2k7')
+})
+
+// 注册全局模态框引用
+onMounted(() => {
+  if (modalRef.value) {
+    setModalRef(modalRef.value)
+  }
+})
+
+// 兼容旧的 provide 方式
 const confirm = (message) => {
   if (modalRef.value) {
-    return modalRef.value.show(message)
+    return modalRef.value.confirm(message)
   }
   return Promise.resolve(false)
 }
@@ -48,10 +63,26 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#FFFBF5] text-gray-800 font-sans flex flex-col">
+  <!-- 管理后台使用独立布局，不显示普通导航栏 -->
+  <div v-if="isAdminRoute" class="min-h-screen">
+    <RouterView v-slot="{ Component }">
+      <Transition name="page-fade" mode="out-in">
+        <component :is="Component" />
+      </Transition>
+    </RouterView>
+    <Toast />
+    <Modal ref="modalRef" />
+  </div>
+  
+  <!-- 普通用户页面 -->
+  <div v-else class="min-h-screen bg-[#FFFBF5] text-gray-800 font-sans flex flex-col">
     <Navbar />
     <div class="flex-grow">
-      <RouterView />
+      <RouterView v-slot="{ Component }">
+        <Transition name="page-fade" mode="out-in">
+          <component :is="Component" />
+        </Transition>
+      </RouterView>
     </div>
     <Toast />
     <Modal ref="modalRef" />

@@ -42,6 +42,16 @@ public enum MessageType {
     NEW_COMMENT,
 
     /**
+     * 评论被回复
+     */
+    COMMENT_REPLY,
+
+    /**
+     * 评论被点赞
+     */
+    COMMENT_LIKED,
+
+    /**
      * 新菜谱待审核（通知管理员）
      */
     NEW_RECIPE_PENDING
