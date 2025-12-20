@@ -1,13 +1,15 @@
 <script setup>
-import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { useNotificationStore } from '../stores/notification'
 import { useToast } from '../components/Toast.vue'
 import { MessageSquare, Send, ArrowLeft, User, Search, MoreVertical, AlertCircle } from 'lucide-vue-next'
 import { getConversations, getMessages, sendMessage as apiSendMessage, markRead } from '@/api/social'
 
 const router = useRouter()
 const userStore = useUserStore()
+const notificationStore = useNotificationStore()
 const { showToast } = useToast()
 
 // 会话列表
@@ -74,6 +76,10 @@ const loadConversations = async () => {
 // 选择会话
 const selectConversation = async (conv) => {
   selectedConversation.value = conv
+  
+  // 设置当前聊天用户 ID，用于判断是否需要显示 Toast
+  notificationStore.setCurrentChatUser(conv.userId)
+  
   await loadMessages(conv.userId)
   // 标记已读 (前端逻辑，后端可能需要单独的已读接口，这里暂时只清除前端未读数)
   // 实际上点击进入会话，后端应该将该用户的消息标记为已读。
@@ -179,7 +185,59 @@ const handleSendMessage = async () => {
 // 返回会话列表（移动端）
 const backToList = () => {
   selectedConversation.value = null
+  // 清除当前聊天用户 ID
+  notificationStore.clearCurrentChatUser()
 }
+
+// 监听 WebSocket 新消息通知（使用 latestNotification 而非 latestToast，确保即使不弹 Toast 也能收到）
+watch(() => notificationStore.latestNotification, async (notification) => {
+  if (!notification || notification.type !== 'NEW_MESSAGE') return
+  
+  const senderId = notification.senderId
+  console.log('MessagesView: 收到新消息通知, senderId =', senderId)
+  
+  // 更新会话列表
+  const convIndex = conversations.value.findIndex(c => c.userId === senderId)
+  if (convIndex > -1) {
+    // 会话已存在，更新最后消息
+    const conv = conversations.value[convIndex]
+    conv.lastMessage = notification.content
+    conv.time = '刚刚'
+    
+    // 如果不是当前选中的会话，增加未读数
+    if (!selectedConversation.value || selectedConversation.value.userId !== senderId) {
+      conv.unread = (conv.unread || 0) + 1
+    }
+    
+    // 把该会话移到最前
+    conversations.value.splice(convIndex, 1)
+    conversations.value.unshift(conv)
+  } else {
+    // 新会话，重新加载会话列表
+    await loadConversations()
+  }
+  
+  // 如果正在查看的就是这个用户的会话，自动加载新消息
+  if (selectedConversation.value && selectedConversation.value.userId === senderId) {
+    // 直接添加新消息到列表（避免完全刷新）
+    const newMsg = {
+      id: Date.now(),
+      senderId: senderId,
+      content: notification.content,
+      time: formatTime(new Date()),
+      isMine: false,
+      senderAvatar: notification.senderAvatar
+    }
+    messages.value.push(newMsg)
+    
+    // 滚动到底部
+    await nextTick()
+    scrollToBottom()
+    
+    // 标记已读
+    markRead(senderId).catch(e => console.error('标记已读失败', e))
+  }
+})
 
 onMounted(() => {
   if (!userStore.user) {
@@ -187,6 +245,11 @@ onMounted(() => {
     return
   }
   loadConversations()
+})
+
+// 离开页面时清除当前聊天用户 ID
+onUnmounted(() => {
+  notificationStore.clearCurrentChatUser()
 })
 </script>
 

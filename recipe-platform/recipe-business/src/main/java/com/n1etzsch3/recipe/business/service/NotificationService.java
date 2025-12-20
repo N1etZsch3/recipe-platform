@@ -1,0 +1,80 @@
+package com.n1etzsch3.recipe.business.service;
+
+import com.n1etzsch3.recipe.common.websocket.WebSocketMessage;
+
+/**
+ * 通知推送服务接口
+ * 负责将实时消息推送给在线用户
+ */
+public interface NotificationService {
+
+    /**
+     * 发送通知给指定用户
+     * 
+     * @param userId  目标用户ID
+     * @param message 消息内容
+     * @return 是否发送成功（用户不在线时返回 false）
+     */
+    boolean sendToUser(Long userId, WebSocketMessage message);
+
+    /**
+     * 发送菜谱审核通过通知
+     * 
+     * @param userId      菜谱作者ID
+     * @param recipeId    菜谱ID
+     * @param recipeTitle 菜谱标题
+     */
+    void sendRecipeApproved(Long userId, Long recipeId, String recipeTitle);
+
+    /**
+     * 发送菜谱审核驳回通知
+     * 
+     * @param userId      菜谱作者ID
+     * @param recipeId    菜谱ID
+     * @param recipeTitle 菜谱标题
+     * @param reason      驳回原因
+     */
+    void sendRecipeRejected(Long userId, Long recipeId, String recipeTitle, String reason);
+
+    /**
+     * 发送新私信通知
+     * 
+     * @param receiverId   接收者ID
+     * @param senderId     发送者ID
+     * @param senderName   发送者昵称
+     * @param senderAvatar 发送者头像
+     * @param content      消息内容预览
+     */
+    void sendNewMessage(Long receiverId, Long senderId, String senderName, String senderAvatar, String content);
+
+    /**
+     * 发送新关注者通知
+     * 
+     * @param followedId     被关注者ID
+     * @param followerId     关注者ID
+     * @param followerName   关注者昵称
+     * @param followerAvatar 关注者头像
+     */
+    void sendNewFollower(Long followedId, Long followerId, String followerName, String followerAvatar);
+
+    /**
+     * 发送新评论通知
+     * 
+     * @param authorId      菜谱作者ID
+     * @param commenterId   评论者ID
+     * @param commenterName 评论者昵称
+     * @param recipeId      菜谱ID
+     * @param recipeTitle   菜谱标题
+     */
+    void sendNewComment(Long authorId, Long commenterId, String commenterName, Long recipeId, String recipeTitle);
+
+    /**
+     * 发送新菜谱待审核通知给所有管理员
+     *
+     * @param recipeId    菜谱ID
+     * @param recipeTitle 菜谱标题
+     * @param authorId    作者ID
+     * @param authorName  作者昵称
+     */
+    void sendNewRecipePending(Long recipeId, String recipeTitle, Long authorId, String authorName);
+}

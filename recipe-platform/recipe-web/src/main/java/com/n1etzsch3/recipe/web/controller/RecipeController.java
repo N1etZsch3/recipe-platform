@@ -113,6 +113,7 @@ public class RecipeController {
             case "汤羹" -> 5;
             case "主食" -> 6;
             case "小吃" -> 7;
+            case "甜品" -> 9;
             case "其他" -> 8;
             default -> 1;
         };

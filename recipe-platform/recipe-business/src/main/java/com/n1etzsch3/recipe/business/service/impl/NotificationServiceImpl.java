@@ -1,0 +1,155 @@
+package com.n1etzsch3.recipe.business.service.impl;
+
+import cn.hutool.json.JSONUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.n1etzsch3.recipe.business.service.NotificationService;
+import com.n1etzsch3.recipe.common.websocket.MessageType;
+import com.n1etzsch3.recipe.common.websocket.WebSocketMessage;
+import com.n1etzsch3.recipe.framework.websocket.WebSocketSessionManager;
+import com.n1etzsch3.recipe.system.entity.SysUser;
+import com.n1etzsch3.recipe.system.mapper.SysUserMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * 通知推送服务实现
+ * 通过 WebSocket 将消息推送给在线用户
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class NotificationServiceImpl implements NotificationService {
+
+    private final WebSocketSessionManager sessionManager;
+    private final SysUserMapper sysUserMapper;
+
+    @Override
+    public boolean sendToUser(Long userId, WebSocketMessage message) {
+        if (userId == null || message == null) {
+            return false;
+        }
+
+        // 设置时间戳
+        if (message.getTimestamp() == null) {
+            message.setTimestamp(LocalDateTime.now());
+        }
+
+        String json = JSONUtil.toJsonStr(message);
+
+        boolean success = sessionManager.sendMessage(userId, json);
+        if (success) {
+            log.info("通知发送成功: userId={}, type={}", userId, message.getType());
+        } else {
+            log.info("用户不在线，通知未发送: userId={}, type={}", userId, message.getType());
+            // TODO: 可选择存储离线消息到数据库，用户上线后推送
+        }
+        return success;
+    }
+
+    @Override
+    public void sendRecipeApproved(Long userId, Long recipeId, String recipeTitle) {
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.RECIPE_APPROVED)
+                .title("菜谱审核通过 🎉")
+                .content("您的菜谱「" + recipeTitle + "」已审核通过，快去看看吧！")
+                .relatedId(recipeId)
+                .build();
+        sendToUser(userId, message);
+    }
+
+    @Override
+    public void sendRecipeRejected(Long userId, Long recipeId, String recipeTitle, String reason) {
+        String content = "您的菜谱「" + recipeTitle + "」审核未通过";
+        if (reason != null && !reason.isEmpty()) {
+            content += "，原因：" + reason;
+        }
+
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.RECIPE_REJECTED)
+                .title("菜谱审核未通过")
+                .content(content)
+                .relatedId(recipeId)
+                .build();
+        sendToUser(userId, message);
+    }
+
+    @Override
+    public void sendNewMessage(Long receiverId, Long senderId, String senderName, String senderAvatar, String content) {
+        // 截取消息预览（最多50字符）
+        String preview = content;
+        if (content != null && content.length() > 50) {
+            preview = content.substring(0, 50) + "...";
+        }
+
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.NEW_MESSAGE)
+                .title("新私信")
+                .content(preview)
+                .senderId(senderId)
+                .senderName(senderName)
+                .senderAvatar(senderAvatar)
+                .build();
+        sendToUser(receiverId, message);
+    }
+
+    @Override
+    public void sendNewFollower(Long followedId, Long followerId, String followerName, String followerAvatar) {
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.NEW_FOLLOWER)
+                .title("新粉丝")
+                .content(followerName + " 关注了你")
+                .senderId(followerId)
+                .senderName(followerName)
+                .senderAvatar(followerAvatar)
+                .build();
+        sendToUser(followedId, message);
+    }
+
+    @Override
+    public void sendNewComment(Long authorId, Long commenterId, String commenterName, Long recipeId,
+            String recipeTitle) {
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.NEW_COMMENT)
+                .title("新评论")
+                .content(commenterName + " 评论了您的菜谱「" + recipeTitle + "」")
+                .relatedId(recipeId)
+                .senderId(commenterId)
+                .senderName(commenterName)
+                .build();
+        sendToUser(authorId, message);
+    }
+
+    @Override
+    public void sendNewRecipePending(Long recipeId, String recipeTitle, Long authorId, String authorName) {
+        // 查询所有管理员
+        List<SysUser> admins = sysUserMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getRole, "admin")
+                .eq(SysUser::getStatus, 1)); // 正常状态的管理员
+
+        if (admins.isEmpty()) {
+            log.warn("没有找到管理员，无法发送待审核通知");
+            return;
+        }
+
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.NEW_RECIPE_PENDING)
+                .title("新菜谱待审核 📝")
+                .content("用户「" + authorName + "」提交了新菜谱「" + recipeTitle + "」，请尽快审核")
+                .relatedId(recipeId)
+                .senderId(authorId)
+                .senderName(authorName)
+                .build();
+
+        // 向所有管理员发送通知
+        for (SysUser admin : admins) {
+            sendToUser(admin.getId(), message);
+        }
+
+        log.info("已向 {} 位管理员发送新菜谱待审核通知: recipeId={}, title={}",
+                admins.size(), recipeId, recipeTitle);
+    }
+}

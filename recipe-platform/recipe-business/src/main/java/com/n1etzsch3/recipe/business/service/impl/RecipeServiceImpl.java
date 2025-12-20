@@ -16,6 +16,7 @@ import com.n1etzsch3.recipe.business.entity.RecipeStep;
 import com.n1etzsch3.recipe.business.mapper.RecipeInfoMapper;
 import com.n1etzsch3.recipe.business.mapper.RecipeIngredientMapper;
 import com.n1etzsch3.recipe.business.mapper.RecipeStepMapper;
+import com.n1etzsch3.recipe.business.service.NotificationService;
 import com.n1etzsch3.recipe.business.service.RecipeService;
 import com.n1etzsch3.recipe.common.context.UserContext;
 import com.n1etzsch3.recipe.common.core.domain.Result;
@@ -44,6 +45,7 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
     private final com.n1etzsch3.recipe.business.mapper.RecipeCommentMapper commentMapper;
     private final com.n1etzsch3.recipe.business.mapper.UserFavoriteMapper favoriteMapper;
     private final com.n1etzsch3.recipe.business.mapper.UserFollowMapper followMapper;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -90,6 +92,11 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
             }).collect(Collectors.toList());
             steps.forEach(stepMapper::insert);
         }
+
+        // 4. 通知所有管理员有新菜谱待审核
+        SysUser author = sysUserMapper.selectById(userId);
+        String authorName = author != null ? author.getNickname() : "用户" + userId;
+        notificationService.sendNewRecipePending(recipeId, publishDTO.getTitle(), userId, authorName);
 
         return Result.ok("发布成功，等待审核");
     }
@@ -250,6 +257,7 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
             case 5 -> "汤羹";
             case 6 -> "主食";
             case 7 -> "小吃";
+            case 9 -> "甜品";
             case 8 -> "其他";
             default -> "美食";
         };

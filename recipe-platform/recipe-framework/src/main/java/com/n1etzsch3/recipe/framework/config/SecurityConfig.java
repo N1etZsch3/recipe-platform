@@ -46,6 +46,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 1. 游客 (Visitor) - 放行
                         .requestMatchers("/api/v1/users/login", "/api/v1/users/register").permitAll()
+                        .requestMatchers("/ws").permitAll() // WebSocket 端点（Token 在连接时验证）
                         .requestMatchers(HttpMethod.GET, "/api/v1/recipes/**").permitAll() // 浏览菜谱
                         .requestMatchers(HttpMethod.GET, "/api/v1/interactions/comments/**").permitAll() // 浏览评论
                         .requestMatchers("/doc.html", "/webjars/**", "/v3/api-docs/**").permitAll() // Swagger

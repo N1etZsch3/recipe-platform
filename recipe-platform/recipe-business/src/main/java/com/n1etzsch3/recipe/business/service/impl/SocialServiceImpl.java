@@ -12,6 +12,7 @@ import com.n1etzsch3.recipe.business.entity.ChatMessage;
 import com.n1etzsch3.recipe.business.entity.UserFollow;
 import com.n1etzsch3.recipe.business.mapper.ChatMessageMapper;
 import com.n1etzsch3.recipe.business.mapper.UserFollowMapper;
+import com.n1etzsch3.recipe.business.service.NotificationService;
 import com.n1etzsch3.recipe.business.service.SocialService;
 import com.n1etzsch3.recipe.common.context.UserContext;
 import com.n1etzsch3.recipe.common.core.domain.Result;
@@ -31,6 +32,7 @@ public class SocialServiceImpl implements SocialService {
     private final UserFollowMapper followMapper;
     private final SysUserMapper sysUserMapper;
     private final ChatMessageMapper chatMessageMapper;
+    private final NotificationService notificationService;
 
     @Override
     public Result<?> toggleFollow(Long targetUserId) {
@@ -52,6 +54,14 @@ public class SocialServiceImpl implements SocialService {
             follow.setFollowedId(targetUserId);
             follow.setCreateTime(LocalDateTime.now());
             followMapper.insert(follow);
+
+            // 发送新关注者通知
+            SysUser follower = sysUserMapper.selectById(userId);
+            if (follower != null) {
+                notificationService.sendNewFollower(targetUserId, userId,
+                        follower.getNickname(), follower.getAvatar());
+            }
+
             return Result.ok("关注成功");
         }
     }
@@ -132,6 +142,14 @@ public class SocialServiceImpl implements SocialService {
         msg.setIsRead(0);
 
         chatMessageMapper.insert(msg);
+
+        // 发送新私信通知
+        SysUser sender = sysUserMapper.selectById(userId);
+        if (sender != null) {
+            notificationService.sendNewMessage(receiverId, userId,
+                    sender.getNickname(), sender.getAvatar(), messageDTO.getContent());
+        }
+
         return Result.ok("发送成功");
     }
 

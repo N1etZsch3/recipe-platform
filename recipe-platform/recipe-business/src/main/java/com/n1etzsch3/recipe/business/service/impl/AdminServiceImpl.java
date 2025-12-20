@@ -12,6 +12,7 @@ import com.n1etzsch3.recipe.business.entity.RecipeInfo;
 import com.n1etzsch3.recipe.business.mapper.RecipeCategoryMapper;
 import com.n1etzsch3.recipe.business.mapper.RecipeInfoMapper;
 import com.n1etzsch3.recipe.business.service.AdminService;
+import com.n1etzsch3.recipe.business.service.NotificationService;
 import com.n1etzsch3.recipe.common.constant.RecipeConstants;
 import com.n1etzsch3.recipe.common.core.domain.Result;
 import com.n1etzsch3.recipe.system.entity.SysUser;
@@ -30,6 +31,7 @@ public class AdminServiceImpl implements AdminService {
     private final RecipeInfoMapper recipeInfoMapper;
     private final RecipeCategoryMapper categoryMapper;
     private final SysUserMapper sysUserMapper;
+    private final NotificationService notificationService;
 
     @Override
     public Result<IPage<RecipeDetailDTO>> pageAuditRecipes(Integer page, Integer size) {
@@ -61,9 +63,14 @@ public class AdminServiceImpl implements AdminService {
 
         if ("pass".equals(auditDTO.getAction())) {
             recipe.setStatus(RecipeConstants.STATUS_PUBLISHED); // 已发布
+            // 发送审核通过通知
+            notificationService.sendRecipeApproved(recipe.getUserId(), recipe.getId(), recipe.getTitle());
         } else if ("reject".equals(auditDTO.getAction())) {
             recipe.setStatus(RecipeConstants.STATUS_REJECTED); // 驳回
             recipe.setRejectReason(auditDTO.getReason());
+            // 发送审核驳回通知
+            notificationService.sendRecipeRejected(recipe.getUserId(), recipe.getId(),
+                    recipe.getTitle(), auditDTO.getReason());
         } else {
             return Result.fail("未知操作");
         }

@@ -77,4 +77,31 @@ public class JwtUtils {
             return false;
         }
     }
+
+    /**
+     * 从 Token 中获取用户ID
+     * 
+     * @param token Token 字符串
+     * @return 用户ID
+     */
+    public static Long getUserIdFromToken(String token) {
+        Claims claims = parseToken(token);
+        Object userId = claims.get("userId");
+        if (userId == null) {
+            return null;
+        }
+        return Long.valueOf(String.valueOf(userId));
+    }
+
+    /**
+     * 从 Token 中获取用户角色
+     * 
+     * @param token Token 字符串
+     * @return 用户角色
+     */
+    public static String getRoleFromToken(String token) {
+        Claims claims = parseToken(token);
+        Object role = claims.get("role");
+        return role != null ? String.valueOf(role) : null;
+    }
 }

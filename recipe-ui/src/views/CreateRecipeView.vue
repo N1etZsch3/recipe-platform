@@ -6,13 +6,14 @@ import { PenTool, Image, X, Loader2, Plus, Trash2 } from 'lucide-vue-next'
 import { uploadFile } from '@/api/common'
 import { createRecipe, updateRecipe, getRecipeDetail } from '@/api/recipe'
 import { useUserStore } from '../stores/user'
+import { RECIPE_CATEGORIES } from '@/utils/constants'
 
 const router = useRouter()
 const route = useRoute()
 const { showToast } = useToast()
 const userStore = useUserStore()
 
-const categories = ['家常菜', '下饭菜', '烘焙', '肉类', '汤羹', '主食', '小吃', '其他']
+const categories = RECIPE_CATEGORIES
 
 // 编辑模式
 const editId = ref(null)

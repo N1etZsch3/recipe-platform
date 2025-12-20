@@ -8,9 +8,12 @@ import { useToast } from '@/components/Toast.vue'
 const router = useRouter()
 const { showToast } = useToast()
 
+
+import { RECIPE_CATEGORIES } from '@/utils/constants'
+
 const searchQuery = ref('')
 const filterCategory = ref('全部')
-const categories = ['全部', '甜品', '素菜', '肉类', '汤类', '主食']
+const categories = ['全部', ...RECIPE_CATEGORIES]
 
 const recipes = ref([])
 const loading = ref(false)
