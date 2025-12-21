@@ -1,11 +1,12 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { listComments, deleteComment, listUsers, listAllRecipes } from '@/api/admin'
 import { useToast } from '@/components/Toast.vue'
 import { useModal } from '@/composables/useModal'
 import { 
     Search, Trash2, ExternalLink, ChevronLeft, ChevronRight, 
-    Filter, ArrowUpDown, User, ChefHat, X, MessageSquare
+    Filter, ArrowUpDown, User, ChefHat, X, MessageSquare,
+    RefreshCw, Settings, MoreHorizontal
 } from 'lucide-vue-next'
 
 const { showToast } = useToast()
@@ -13,17 +14,23 @@ const { confirm } = useModal()
 
 const loading = ref(false)
 const comments = ref([])
-const keyword = ref('')
-const userIdFilter = ref(null)
-const recipeIdFilter = ref(null)
-const sortBy = ref('newest')
-
 const users = ref([])
 const recipes = ref([])
 
+// 搜索表单
+const searchForm = ref({
+    keyword: '',
+    userId: '',
+    recipeId: '',
+    sortBy: 'newest'
+})
+
+const showFilterPanel = ref(false)
+const selectedIds = ref([])
+
 const pagination = ref({
     current: 1,
-    size: 10,
+    size: 20,
     total: 0
 })
 
@@ -34,14 +41,15 @@ const sortOptions = [
 
 const fetchComments = async () => {
     loading.value = true
+    selectedIds.value = [] // Reset selection
     try {
         const res = await listComments({
             page: pagination.value.current,
             size: pagination.value.size,
-            keyword: keyword.value || undefined,
-            userId: userIdFilter.value || undefined,
-            recipeId: recipeIdFilter.value || undefined,
-            sortBy: sortBy.value === 'oldest' ? 'oldest' : undefined
+            keyword: searchForm.value.keyword || undefined,
+            userId: searchForm.value.userId || undefined,
+            recipeId: searchForm.value.recipeId || undefined,
+            sortBy: searchForm.value.sortBy === 'oldest' ? 'oldest' : undefined
         })
         if (res) {
             comments.value = res.records || []
@@ -75,18 +83,14 @@ const handleSearch = () => {
     fetchComments()
 }
 
-const handleFilterChange = () => {
-    pagination.value.current = 1
-    fetchComments()
-}
-
-const clearFilters = () => {
-    keyword.value = ''
-    userIdFilter.value = null
-    recipeIdFilter.value = null
-    sortBy.value = 'newest'
-    pagination.value.current = 1
-    fetchComments()
+const handleReset = () => {
+    searchForm.value = {
+        keyword: '',
+        userId: '',
+        recipeId: '',
+        sortBy: 'newest'
+    }
+    handleSearch()
 }
 
 const handlePageChange = (page) => {
@@ -113,20 +117,40 @@ const viewRecipe = (recipeId) => {
     window.open(`/recipe/${recipeId}`, '_blank')
 }
 
-const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.size))
+// Selection Logic
+const isAllSelected = computed(() => {
+    return comments.value.length > 0 && comments.value.every(c => selectedIds.value.includes(c.id))
+})
 
+const toggleSelectAll = (e) => {
+    if (e.target.checked) {
+        selectedIds.value = comments.value.map(c => c.id)
+    } else {
+        selectedIds.value = []
+    }
+}
+
+const toggleSelect = (comment) => {
+    const id = comment.id
+    if (selectedIds.value.includes(id)) {
+        selectedIds.value = selectedIds.value.filter(i => i !== id)
+    } else {
+        selectedIds.value.push(id)
+    }
+}
+
+const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.size))
 const visiblePages = computed(() => {
     const pages = []
     const total = totalPages.value
     const current = pagination.value.current
-    
-    if (total <= 5) {
+    if (total <= 7) {
         for (let i = 1; i <= total; i++) pages.push(i)
     } else {
-        if (current <= 3) {
-            pages.push(1, 2, 3, 4, '...', total)
-        } else if (current >= total - 2) {
-            pages.push(1, '...', total - 3, total - 2, total - 1, total)
+        if (current <= 4) {
+            pages.push(1, 2, 3, 4, 5, '...', total)
+        } else if (current >= total - 3) {
+            pages.push(1, '...', total - 4, total - 3, total - 2, total - 1, total)
         } else {
             pages.push(1, '...', current - 1, current, current + 1, '...', total)
         }
@@ -141,7 +165,7 @@ const formatDate = (dateStr) => {
 }
 
 const hasActiveFilters = computed(() => {
-    return keyword.value || userIdFilter.value || recipeIdFilter.value || sortBy.value !== 'newest'
+    return searchForm.value.userId || searchForm.value.recipeId || searchForm.value.sortBy !== 'newest'
 })
 
 onMounted(() => {
@@ -151,197 +175,243 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="space-y-6 p-5 h-full overflow-y-auto">
-        <!-- 页面标题 -->
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-800">评论管理</h1>
-                <p class="text-sm text-gray-500 mt-1">管理和审核用户评论</p>
-            </div>
-            <div class="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-xl">
-                <MessageSquare class="w-4 h-4" />
-                <span class="text-sm font-medium">{{ pagination.total }} 条评论</span>
+    <div class="flex flex-col h-full p-5 space-y-4" @click="showFilterPanel = false">
+        <!-- 顶部搜索栏 -->
+        <div class="flex-shrink-0 bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+            <div class="flex flex-wrap items-center gap-6">
+                <!-- 搜索关键词 -->
+                <div class="flex items-center gap-3">
+                    <label class="text-sm font-medium text-gray-600 whitespace-nowrap">搜索内容</label>
+                    <div class="relative">
+                        <input 
+                            v-model="searchForm.keyword"
+                            type="text" 
+                            placeholder="搜索评论内容..." 
+                            class="w-64 px-3 py-2 pl-9 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+                            @keyup.enter="handleSearch"
+                        >
+                        <Search class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                </div>
+
+                <!-- 操作按钮组 -->
+                <div class="flex items-center gap-3 ml-auto">
+                    <button 
+                        @click="handleReset"
+                        class="px-4 py-2 text-sm font-medium text-blue-500 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition"
+                    >
+                        重置
+                    </button>
+                    <button 
+                        @click="handleSearch"
+                        class="px-5 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 shadow-sm shadow-blue-200 transition"
+                    >
+                        查询
+                    </button>
+                </div>
             </div>
         </div>
 
-        <!-- 搜索和筛选 -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-50 p-5">
-            <div class="flex flex-wrap gap-4">
-                <!-- 关键词搜索 -->
-                <div class="flex-1 min-w-[200px] relative">
-                    <Search class="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                    <input
-                        v-model="keyword"
-                        @keyup.enter="handleSearch"
-                        type="text"
-                        placeholder="搜索评论内容..."
-                        class="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-orange-200 focus:border-orange-400 focus:bg-white outline-none transition"
-                    />
-                </div>
-
-                <!-- 用户筛选 -->
-                <div class="relative min-w-[150px]">
-                    <User class="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
-                    <select
-                        v-model="userIdFilter"
-                        @change="handleFilterChange"
-                        class="appearance-none w-full pl-11 pr-10 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-orange-200 focus:border-orange-400 focus:bg-white outline-none transition cursor-pointer"
-                    >
-                        <option :value="null">全部用户</option>
-                        <option v-for="user in users" :key="user.id" :value="user.id">
-                            {{ user.nickname }}
-                        </option>
-                    </select>
-                    <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
+        <!-- 表格主体区域 -->
+        <div class="flex-1 min-h-0 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col relative">
+            <!-- 工具栏 -->
+            <div class="flex-shrink-0 p-4 border-b border-gray-100 flex items-center justify-between z-20 bg-white rounded-t-xl">
+                <div class="flex items-center gap-3">
+                    <!-- 批量操作 placeholder -->
+                    <div v-if="selectedIds.length > 0" class="flex items-center gap-2 animate-fade-in">
+                        <span class="text-xs text-gray-500">已选 {{ selectedIds.length }} 项</span>
+                        <button 
+                            class="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 transition flex items-center gap-1"
+                        >
+                            <Trash2 class="w-3.5 h-3.5" />
+                            批量删除
+                        </button>
+                    </div>
+                    <div v-else class="text-sm font-medium text-gray-500 flex items-center gap-2">
+                        <MessageSquare class="w-4 h-4" />
+                        评论列表
                     </div>
                 </div>
-
-                <!-- 菜谱筛选 -->
-                <div class="relative min-w-[150px]">
-                    <ChefHat class="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
-                    <select
-                        v-model="recipeIdFilter"
-                        @change="handleFilterChange"
-                        class="appearance-none w-full pl-11 pr-10 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-orange-200 focus:border-orange-400 focus:bg-white outline-none transition cursor-pointer"
-                    >
-                        <option :value="null">全部菜谱</option>
-                        <option v-for="recipe in recipes" :key="recipe.id" :value="recipe.id">
-                            {{ recipe.title }}
-                        </option>
-                    </select>
-                    <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </div>
-                </div>
-
-                <!-- 排序 -->
-                <div class="relative min-w-[130px]">
-                    <ArrowUpDown class="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
-                    <select
-                        v-model="sortBy"
-                        @change="handleFilterChange"
-                        class="appearance-none w-full pl-11 pr-10 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-orange-200 focus:border-orange-400 focus:bg-white outline-none transition cursor-pointer"
-                    >
-                        <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
-                            {{ opt.label }}
-                        </option>
-                    </select>
-                    <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </div>
-                </div>
-
-                <button 
-                    @click="handleSearch"
-                    class="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:from-orange-600 hover:to-amber-600 transition font-medium shadow-md shadow-orange-200"
-                >
-                    搜索
-                </button>
-
-                <!-- 清除筛选 -->
-                <button 
-                    v-if="hasActiveFilters"
-                    @click="clearFilters"
-                    class="px-4 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition flex items-center gap-1.5 font-medium"
-                >
-                    <X class="w-4 h-4" />
-                    清除
-                </button>
-            </div>
-        </div>
-
-        <!-- 评论列表 -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-50 overflow-hidden">
-            <div v-if="loading" class="p-16 text-center text-gray-400">
-                <div class="flex flex-col items-center">
-                    <div class="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span class="mt-3">加载中...</span>
-                </div>
-            </div>
-            <div v-else-if="comments.length === 0" class="p-16 text-center text-gray-400">
-                <div class="flex flex-col items-center">
-                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-3">
-                        <MessageSquare class="w-8 h-8 text-gray-300" />
-                    </div>
-                    <span>暂无评论</span>
-                </div>
-            </div>
-            
-            <div v-else class="divide-y divide-gray-50">
-                <div 
-                    v-for="comment in comments" 
-                    :key="comment.id"
-                    class="p-5 hover:bg-gray-50/50 transition group"
-                >
-                    <div class="flex items-start gap-4">
-                        <!-- 用户头像 -->
-                        <img 
-                            :src="comment.userAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + comment.userId" 
-                            class="w-11 h-11 rounded-xl bg-gray-100 flex-shrink-0 object-cover"
-                        />
-                        
-                        <!-- 评论内容 -->
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2 mb-1.5">
-                                <span class="font-medium text-gray-800">{{ comment.userNickname || '用户' + comment.userId }}</span>
-                                <span class="text-xs text-gray-400">{{ formatDate(comment.createTime) }}</span>
+                
+                <div class="flex items-center gap-2">
+                    <button class="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition" title="刷新" @click="fetchComments">
+                        <RefreshCw class="w-4 h-4" />
+                    </button>
+                    <div class="relative">
+                        <button 
+                            class="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition" 
+                            title="筛选"
+                            @click.stop="showFilterPanel = !showFilterPanel"
+                        >
+                            <div class="relative">
+                                <Filter class="w-4 h-4" :class="hasActiveFilters ? 'text-blue-500' : ''" />
+                                <span v-if="hasActiveFilters" class="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
                             </div>
-                            <p class="text-gray-600 mb-2.5 leading-relaxed">{{ comment.content }}</p>
-                            <div class="flex items-center gap-2 text-sm">
-                                <span class="text-gray-400">评论于</span>
+                        </button>
+                        <!-- 筛选下拉面板 -->
+                        <div 
+                            v-if="showFilterPanel"
+                            class="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-100 rounded-lg shadow-xl p-4 space-y-4 z-30"
+                            @click.stop
+                        >
+                            <div>
+                                <label class="text-xs font-medium text-gray-500 mb-1.5 block">用户筛选</label>
+                                <select v-model="searchForm.userId" class="w-full text-sm border-gray-200 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                    <option value="">全部用户</option>
+                                    <option v-for="user in users" :key="user.id" :value="user.id">
+                                        {{ user.nickname }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-500 mb-1.5 block">菜谱筛选</label>
+                                <select v-model="searchForm.recipeId" class="w-full text-sm border-gray-200 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                    <option value="">全部菜谱</option>
+                                    <option v-for="recipe in recipes" :key="recipe.id" :value="recipe.id">
+                                        {{ recipe.title }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-500 mb-1.5 block">排序方式</label>
+                                <select v-model="searchForm.sortBy" class="w-full text-sm border-gray-200 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                    <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
+                                        {{ opt.label }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="flex gap-2 pt-2">
                                 <button 
-                                    @click="viewRecipe(comment.recipeId)"
-                                    class="text-orange-500 hover:text-orange-600 flex items-center gap-1 font-medium transition"
+                                    @click="handleReset(); showFilterPanel=false"
+                                    class="flex-1 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
                                 >
-                                    {{ comment.recipeTitle || '菜谱 #' + comment.recipeId }}
-                                    <ExternalLink class="w-3.5 h-3.5" />
+                                    重置
+                                </button>
+                                <button 
+                                    @click="handleSearch(); showFilterPanel=false"
+                                    class="flex-1 py-1.5 text-xs font-medium text-white bg-blue-500 rounded hover:bg-blue-600"
+                                >
+                                    应用
                                 </button>
                             </div>
                         </div>
-
-                        <!-- 操作按钮 -->
-                        <button 
-                            @click="handleDelete(comment)"
-                            class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition flex-shrink-0 opacity-0 group-hover:opacity-100"
-                            title="删除评论"
-                        >
-                            <Trash2 class="w-4 h-4" />
-                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- 分页 -->
-            <div v-if="totalPages > 1" class="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <span class="text-sm text-gray-500">
-                    第 {{ pagination.current }} 页，共 {{ pagination.total }} 条评论
-                </span>
-                <div class="flex items-center gap-1">
+            <!-- 表格滚动区域 -->
+            <div class="flex-1 overflow-auto custom-scrollbar">
+                <table class="w-full text-left">
+                    <thead class="bg-white sticky top-0 z-10 text-xs font-semibold text-gray-500 uppercase">
+                        <tr class="border-b border-gray-100">
+                            <th class="p-4 w-12 text-center">
+                                <input 
+                                    type="checkbox" 
+                                    :checked="isAllSelected"
+                                    @change="toggleSelectAll"
+                                    class="rounded border-gray-300 text-blue-500 focus:ring-blue-200 cursor-pointer" 
+                                />
+                            </th>
+                            <th class="p-4 font-medium w-16">序号</th>
+                            <th class="p-4 font-medium w-1/3">评论内容</th>
+                            <th class="p-4 font-medium">用户</th>
+                            <th class="p-4 font-medium">关联菜谱</th>
+                            <th class="p-4 font-medium">评论时间</th>
+                            <th class="p-4 font-medium text-right pr-8">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 text-sm">
+                        <tr v-if="loading">
+                             <td colspan="7" class="p-12 text-center text-gray-400">
+                                 <div class="flex flex-col items-center">
+                                     <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                     <span class="mt-2 text-xs">加载中...</span>
+                                 </div>
+                             </td>
+                        </tr>
+                        <tr v-else-if="comments.length === 0">
+                             <td colspan="7" class="p-12 text-center text-gray-400">暂无评论数据</td>
+                        </tr>
+                        <tr 
+                            v-else
+                            v-for="(comment, index) in comments" 
+                            :key="comment.id" 
+                            class="hover:bg-gray-50/80 transition group"
+                        >
+                            <td class="p-4 text-center">
+                                <input 
+                                    type="checkbox" 
+                                    :checked="selectedIds.includes(comment.id)"
+                                    @change="toggleSelect(comment)"
+                                    class="rounded border-gray-300 text-blue-500 focus:ring-blue-200 cursor-pointer" 
+                                />
+                            </td>
+                            <td class="p-4 text-gray-500">{{ (pagination.current - 1) * pagination.size + index + 1 }}</td>
+                            <td class="p-4">
+                                <div class="text-gray-800 line-clamp-2" :title="comment.content">
+                                    {{ comment.content }}
+                                </div>
+                            </td>
+                            <td class="p-4">
+                                <div class="flex items-center gap-2">
+                                    <img 
+                                        :src="comment.userAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + comment.userId" 
+                                        class="w-6 h-6 rounded-full object-cover bg-gray-100"
+                                    />
+                                    <span class="text-gray-700 font-medium text-xs">{{ comment.userNickname || 'User' + comment.userId }}</span>
+                                </div>
+                            </td>
+                            <td class="p-4">
+                                <button 
+                                    @click="viewRecipe(comment.recipeId)"
+                                    class="text-blue-500 hover:text-blue-700 hover:underline flex items-center gap-1 text-xs"
+                                >
+                                    {{ comment.recipeTitle || 'Recipe #' + comment.recipeId }}
+                                    <ExternalLink class="w-3 h-3" />
+                                </button>
+                            </td>
+                            <td class="p-4 text-gray-500 text-xs">
+                                {{ formatDate(comment.createTime) }}
+                            </td>
+                            <td class="p-4 text-right pr-6">
+                                <button 
+                                    @click="handleDelete(comment)"
+                                    class="p-1.5 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                    title="删除"
+                                >
+                                    <Trash2 class="w-4 h-4" />
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 底部主要分页 -->
+            <div class="flex-shrink-0 p-4 border-t border-gray-100 flex items-center justify-between">
+                <div class="text-gray-500 text-sm">
+                    共 {{ pagination.total }} 条
+                </div>
+                
+                <div class="flex items-center gap-2">
                     <button 
-                        @click="handlePageChange(pagination.current - 1)"
+                        class="w-8 h-8 flex items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-blue-500 hover:text-blue-500 disabled:opacity-50 transition"
                         :disabled="pagination.current <= 1"
-                        class="p-2 rounded-lg hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        @click="handlePageChange(pagination.current - 1)"
                     >
-                        <ChevronLeft class="w-4 h-4 text-gray-600" />
+                        <ChevronLeft class="w-4 h-4" />
                     </button>
                     
                     <template v-for="page in visiblePages" :key="page">
-                        <span v-if="page === '...'" class="px-2 text-gray-400">...</span>
+                        <span v-if="page === '...'" class="px-1 text-gray-400">...</span>
                         <button 
                             v-else
                             @click="handlePageChange(page)"
                             :class="[
-                                'min-w-[36px] h-9 rounded-lg text-sm font-medium transition',
+                                'min-w-[32px] h-8 px-2 rounded border text-sm transition',
                                 pagination.current === page 
-                                    ? 'bg-orange-500 text-white shadow-md shadow-orange-200' 
-                                    : 'text-gray-600 hover:bg-white hover:shadow-sm'
+                                    ? 'bg-blue-500 border-blue-500 text-white' 
+                                    : 'border-gray-200 text-gray-600 hover:border-blue-500 hover:text-blue-500'
                             ]"
                         >
                             {{ page }}
@@ -349,14 +419,48 @@ onMounted(() => {
                     </template>
                     
                     <button 
-                        @click="handlePageChange(pagination.current + 1)"
+                        class="w-8 h-8 flex items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-blue-500 hover:text-blue-500 disabled:opacity-50 transition"
                         :disabled="pagination.current >= totalPages"
-                        class="p-2 rounded-lg hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        @click="handlePageChange(pagination.current + 1)"
                     >
-                        <ChevronRight class="w-4 h-4 text-gray-600" />
+                        <ChevronRight class="w-4 h-4" />
                     </button>
+                    
+                    <select 
+                        v-model="pagination.size"
+                        @change="handleSearch"
+                        class="h-8 px-2 border border-gray-200 rounded text-sm text-gray-600 focus:border-blue-500 outline-none ml-2"
+                    >
+                        <option :value="10">10条/页</option>
+                        <option :value="20">20条/页</option>
+                        <option :value="50">50条/页</option>
+                    </select>
                 </div>
             </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1;
+}
+.animate-fade-in {
+    animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>

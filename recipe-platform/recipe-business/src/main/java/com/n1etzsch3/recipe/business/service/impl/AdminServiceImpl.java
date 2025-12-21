@@ -267,6 +267,66 @@ public class AdminServiceImpl implements AdminService {
         return Result.ok("删除成功");
     }
 
+    @Override
+    @Transactional
+    public Result<?> batchAuditRecipes(List<Long> ids, String action, String reason) {
+        if (ids == null || ids.isEmpty()) {
+            return Result.fail("请选择要审核的菜谱");
+        }
+
+        int newStatus = "pass".equalsIgnoreCase(action) ? RecipeConstants.STATUS_PUBLISHED
+                : RecipeConstants.STATUS_REJECTED;
+        int count = 0;
+
+        for (Long id : ids) {
+            RecipeInfo recipe = recipeInfoMapper.selectById(id);
+            if (recipe != null && recipe.getStatus() == RecipeConstants.STATUS_PENDING) {
+                recipe.setStatus(newStatus);
+                recipeInfoMapper.updateById(recipe);
+
+                // 发送通知给作者
+                if (newStatus == RecipeConstants.STATUS_PUBLISHED) {
+                    notificationService.sendRecipeApproved(recipe.getUserId(), id, recipe.getTitle());
+                } else {
+                    notificationService.sendRecipeRejected(recipe.getUserId(), id, recipe.getTitle(), reason);
+                }
+                count++;
+            }
+        }
+
+        String actionDesc = newStatus == RecipeConstants.STATUS_PUBLISHED ? "批量通过" : "批量驳回";
+        adminLogService.log("RECIPE_BATCH_AUDIT", "recipe", null, actionDesc + " " + count + " 个菜谱", null);
+        log.info("管理员批量审核菜谱: action={}, count={}", action, count);
+        return Result.ok(actionDesc + "成功，共 " + count + " 个菜谱");
+    }
+
+    @Override
+    @Transactional
+    public Result<?> batchUpdateRecipeStatus(List<Long> ids, Integer status) {
+        if (ids == null || ids.isEmpty()) {
+            return Result.fail("请选择要操作的菜谱");
+        }
+        if (status == null) {
+            return Result.fail("请指定目标状态");
+        }
+
+        int count = 0;
+        for (Long id : ids) {
+            RecipeInfo recipe = recipeInfoMapper.selectById(id);
+            if (recipe != null) {
+                recipe.setStatus(status);
+                recipeInfoMapper.updateById(recipe);
+                count++;
+            }
+        }
+
+        String statusDesc = status == RecipeConstants.STATUS_PUBLISHED ? "上架"
+                : (status == RecipeConstants.STATUS_PENDING ? "下架" : "更新状态");
+        adminLogService.log("RECIPE_BATCH_STATUS", "recipe", null, "批量" + statusDesc + " " + count + " 个菜谱", null);
+        log.info("管理员批量更新菜谱状态: status={}, count={}", status, count);
+        return Result.ok("批量" + statusDesc + "成功，共 " + count + " 个菜谱");
+    }
+
     // ================== Category Management ==================
 
     @Override

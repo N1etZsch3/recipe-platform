@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
+import { listAuditRecipes } from '@/api/admin'
 import {
     LayoutDashboard,
     Users,
@@ -26,6 +27,8 @@ const notificationStore = useNotificationStore()
 const sidebarCollapsed = ref(false)
 const showUserMenu = ref(false)
 const showNotificationPanel = ref(false)
+const todoList = ref([])
+const todoCount = ref(0)
 
 const menuItems = [
     { 
@@ -61,14 +64,48 @@ const menuItems = [
     }
 ]
 
-// 通知列表 - 从通知store获取真实数据
+// Fetch Pending Todos
+const fetchTodos = async () => {
+    try {
+        const res = await listAuditRecipes({ page: 1, size: 5, status: 0 })
+        if (res && res.records) {
+            todoList.value = res.records
+            todoCount.value = parseInt(res.total || res.records.length)
+        }
+    } catch (error) {
+        console.error('Failed to fetch todo list', error)
+    }
+}
+
+watch(showNotificationPanel, (val) => {
+    if (val) {
+        fetchTodos()
+    }
+})
+
+const handleTodoClick = (item) => {
+    showNotificationPanel.value = false
+    // Go to recipe management with status=0 (pending)
+    router.push('/backstage-m9x2k7/recipes?status=0')
+}
+
+const handleViewAll = (tab) => {
+    showNotificationPanel.value = false
+    if (tab === 'todo') {
+        router.push('/backstage-m9x2k7/recipes?status=0')
+    } else if (tab === 'message') {
+        router.push('/messages')
+    } else {
+        router.push('/messages')
+    }
+}
+
+// Notifications
 const notifications = computed(() => {
     return notificationStore.notifications.slice(0, 5)
 })
 
 const unreadCount = computed(() => notificationStore.unreadCount)
-
-
 
 const formatNotificationTime = (time) => {
     if (!time) return ''
@@ -122,11 +159,11 @@ const breadcrumbs = computed(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-50 flex font-sans antialiased">
+    <div class="h-screen bg-gray-50 flex font-sans antialiased overflow-hidden">
         <!-- Sidebar -->
         <aside 
             :class="[
-                'bg-white border-r border-gray-100 transition-all duration-300 flex flex-col fixed h-full z-20',
+                'bg-white border-r border-gray-100 transition-all duration-300 flex flex-col fixed h-full z-30',
                 sidebarCollapsed ? 'w-16' : 'w-52'
             ]"
         >
@@ -176,9 +213,9 @@ const breadcrumbs = computed(() => {
         </aside>
 
         <!-- Main Content -->
-        <main :class="['flex-1 flex flex-col min-h-screen transition-all duration-300', sidebarCollapsed ? 'ml-16' : 'ml-52']">
+        <main :class="['flex-1 flex flex-col h-full transition-all duration-300', sidebarCollapsed ? 'ml-16' : 'ml-52']">
             <!-- 顶部导航栏 -->
-            <header class="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-4 sticky top-0 z-10">
+            <header class="h-14 bg-white border-b border-gray-100 flex items-center justify-between pl-4 pr-32 sticky top-0 z-50">
                 <!-- 左侧：折叠按钮 + 面包屑 -->
                 <div class="flex items-center gap-3">
                     <!-- 折叠按钮 -->
@@ -235,13 +272,44 @@ const breadcrumbs = computed(() => {
                             leave-from-class="transform opacity-100 scale-100"
                             leave-to-class="transform opacity-0 scale-95"
                         >
-                            <div v-if="showNotificationPanel" class="absolute right-0 mt-2 z-50">
+                            <div v-if="showNotificationPanel" class="absolute left-1/2 -translate-x-1/2 mt-2 z-50">
                                 <NotificationCenter 
                                     :show-todo="true"
-                                    :todo-count="0"
+                                    :todo-count="todoCount"
                                     @close="showNotificationPanel = false"
                                     @mark-read="markAllAsRead"
-                                />
+                                    @view-all="handleViewAll"
+                                >
+                                    <template #todo>
+                                        <div v-if="todoList.length === 0" class="py-12 text-center text-gray-400">
+                                            <!-- NotificationCenter default slot logic will help but we can rely on TodoCount if it is right -->
+                                        </div>
+                                        <div v-else class="divide-y divide-gray-50">
+                                            <div 
+                                                v-for="item in todoList" 
+                                                :key="item.id"
+                                                @click="handleTodoClick(item)"
+                                                class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition"
+                                            >
+                                                <img 
+                                                    :src="item.coverImage || 'https://via.placeholder.com/40'" 
+                                                    class="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-gray-100"
+                                                />
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-sm font-medium text-gray-800 line-clamp-1">
+                                                        {{ item.title }}
+                                                    </p>
+                                                    <p class="text-xs text-gray-500 mt-0.5">
+                                                        {{ item.authorName }} · {{ formatNotificationTime(item.createTime || item.updateTime) }} · 申请发布
+                                                    </p>
+                                                </div>
+                                                <div class="flex-shrink-0 text-xs text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
+                                                    待审核
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </NotificationCenter>
                             </div>
                         </transition>
                     </div>
@@ -302,7 +370,7 @@ const breadcrumbs = computed(() => {
         <div 
             v-if="showUserMenu || showNotificationPanel" 
             @click="showUserMenu = false; showNotificationPanel = false"
-            class="fixed inset-0 z-10"
+            class="fixed inset-0 z-40"
         ></div>
     </div>
 </template>

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
-import { listUsers, updateUserStatus, batchUpdateUserStatus } from '@/api/admin'
+import { listUsers, updateUserStatus, batchUpdateUserStatus, getUsersOnlineStatus, kickUser as kickUserApi } from '@/api/admin'
 import { useToast } from '@/components/Toast.vue'
 import { useModal } from '@/composables/useModal'
 import UserModal from './components/UserModal.vue'
@@ -8,7 +8,7 @@ import {
     Search, Ban, CheckCircle, ChevronLeft, ChevronRight, 
     Users, UserPlus, Filter, Edit, Trash2, 
     RefreshCw, ArrowUpDown, Maximize, Settings, MoreHorizontal,
-    ChevronDown, Shield, FileText, Lock
+    ChevronDown, Shield, FileText, Lock, LogOut, Circle
 } from 'lucide-vue-next'
 
 const { showToast } = useToast()
@@ -35,6 +35,7 @@ const pagination = ref({
 
 const showModal = ref(false)
 const editingUser = ref(null)
+const onlineStatus = ref({})
 
 // 状态配置
 const getStatusConfig = (status) => {
@@ -73,6 +74,33 @@ const fetchUsers = async () => {
         showToast('获取用户列表失败')
     } finally {
         loading.value = false
+    }
+}
+
+// 获取用户在线状态
+const fetchOnlineStatus = async () => {
+    if (users.value.length === 0) return
+    try {
+        const userIds = users.value.map(u => u.id)
+        const res = await getUsersOnlineStatus(userIds)
+        if (res) {
+            onlineStatus.value = res
+        }
+    } catch (error) {
+        console.error('Failed to fetch online status', error)
+    }
+}
+
+// 踢用户下线
+const handleKickUser = async (user) => {
+    const confirmed = await confirm(`确定要将用户 "${user.nickname}" 踢下线吗？`, { danger: true })
+    if (!confirmed) return
+    try {
+        await kickUserApi(user.id)
+        onlineStatus.value[user.id] = false
+        showToast('已将用户踢下线')
+    } catch (error) {
+        showToast('操作失败')
     }
 }
 
@@ -182,7 +210,7 @@ const visiblePages = computed(() => {
 })
 
 onMounted(() => {
-    fetchUsers()
+    fetchUsers().then(() => fetchOnlineStatus())
 })
 
 const formatDate = (dateStr) => {
@@ -329,6 +357,7 @@ const getAvatar = (user) => {
                             <th class="p-4 font-medium">角色</th>
                             <th class="p-4 font-medium text-center">总发布菜谱数</th>
                             <th class="p-4 font-medium">状态</th>
+                            <th class="p-4 font-medium text-center">在线</th>
                             <th class="p-4 font-medium">创建日期</th>
                             <th class="p-4 font-medium text-right pr-8">操作</th>
                         </tr>
@@ -397,6 +426,15 @@ const getAvatar = (user) => {
                                     {{ getStatusConfig(user.status).label }}
                                 </span>
                             </td>
+                            <td class="p-4 text-center">
+                                <span :class="[
+                                    'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full',
+                                    onlineStatus[user.id] ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'
+                                ]">
+                                    <Circle :class="['w-2 h-2', onlineStatus[user.id] ? 'fill-green-500 text-green-500' : 'fill-gray-300 text-gray-300']" />
+                                    {{ onlineStatus[user.id] ? '在线' : '离线' }}
+                                </span>
+                            </td>
                             <td class="p-4">
                                 <div class="text-gray-600">{{ formatDate(user.createTime).split(' ')[0] }}</div>
                             </td>
@@ -405,7 +443,7 @@ const getAvatar = (user) => {
                                     <button 
                                         @click="openEditModal(user)"
                                         class="p-1.5 text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
-                                        title="编辑"
+                                        title="编辑用户信息"
                                     >
                                         <Edit class="w-4 h-4" />
                                     </button>
@@ -415,9 +453,17 @@ const getAvatar = (user) => {
                                             'p-1.5 rounded-lg transition',
                                             user.status === 1 ? 'text-red-500 bg-red-50 hover:bg-red-100' : 'text-emerald-500 bg-emerald-50 hover:bg-emerald-100'
                                         ]"
-                                        :title="user.status === 1 ? '封禁' : '解封'"
+                                        :title="user.status === 1 ? '封禁该用户' : '解除用户封禁'"
                                     >
                                         <component :is="user.status === 1 ? Ban : CheckCircle" class="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                        v-if="onlineStatus[user.id]"
+                                        @click="handleKickUser(user)"
+                                        class="p-1.5 text-orange-500 bg-orange-50 hover:bg-orange-100 rounded-lg transition"
+                                        title="强制踢下线"
+                                    >
+                                        <LogOut class="w-4 h-4" />
                                     </button>
                                 </div>
                             </td>

@@ -13,6 +13,7 @@ import com.n1etzsch3.recipe.business.entity.RecipeCategory;
 import com.n1etzsch3.recipe.business.service.AdminLogService;
 import com.n1etzsch3.recipe.business.service.AdminService;
 import com.n1etzsch3.recipe.common.core.domain.Result;
+import com.n1etzsch3.recipe.framework.service.UserOnlineService;
 import com.n1etzsch3.recipe.system.domain.dto.LoginDTO;
 import com.n1etzsch3.recipe.system.entity.SysUser;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class AdminController {
 
     private final AdminService adminService;
     private final AdminLogService adminLogService;
+    private final UserOnlineService userOnlineService;
 
     // ================== Admin Login ==================
 
@@ -78,6 +80,29 @@ public class AdminController {
     public Result<?> deleteRecipe(@PathVariable Long id) {
         log.info("管理员删除菜谱: id={}", id);
         return adminService.deleteRecipe(id);
+    }
+
+    /**
+     * 批量审核菜谱
+     */
+    @PostMapping("/recipes/batch/audit")
+    public Result<?> batchAuditRecipes(@RequestBody Map<String, Object> params) {
+        log.info("管理员批量审核菜谱: {}", params);
+        List<Long> ids = Convert.toList(Long.class, params.get("ids"));
+        String action = Convert.toStr(params.get("action")); // pass / reject
+        String reason = Convert.toStr(params.get("reason"), "");
+        return adminService.batchAuditRecipes(ids, action, reason);
+    }
+
+    /**
+     * 批量更新菜谱状态 (上架/下架)
+     */
+    @PutMapping("/recipes/batch/status")
+    public Result<?> batchUpdateRecipeStatus(@RequestBody Map<String, Object> params) {
+        log.info("管理员批量更新菜谱状态: {}", params);
+        List<Long> ids = Convert.toList(Long.class, params.get("ids"));
+        Integer status = Convert.toInt(params.get("status"));
+        return adminService.batchUpdateRecipeStatus(ids, status);
     }
 
     // ================== Category Management ==================
@@ -142,6 +167,26 @@ public class AdminController {
         List<Long> ids = Convert.toList(Long.class, params.get("ids"));
         Integer status = Convert.toInt(params.get("status"));
         return adminService.batchUpdateStatus(ids, status);
+    }
+
+    /**
+     * 获取用户在线状态
+     */
+    @GetMapping("/users/online")
+    public Result<java.util.Map<Long, Boolean>> getUsersOnlineStatus(@RequestParam List<Long> userIds) {
+        log.info("查询用户在线状态: userIds={}", userIds);
+        java.util.Map<Long, Boolean> result = userOnlineService.batchCheckOnline(userIds);
+        return Result.ok(result);
+    }
+
+    /**
+     * 踢用户下线
+     */
+    @PostMapping("/users/{userId}/kick")
+    public Result<?> kickUser(@PathVariable Long userId) {
+        log.info("管理员踢用户下线: userId={}", userId);
+        userOnlineService.kickUser(userId);
+        return Result.ok("已将用户踢下线");
     }
 
     // ================== Comment Management ==================

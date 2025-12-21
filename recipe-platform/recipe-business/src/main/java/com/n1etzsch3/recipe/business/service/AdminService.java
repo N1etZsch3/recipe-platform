@@ -27,6 +27,10 @@ public interface AdminService {
 
     Result<?> deleteRecipe(Long recipeId);
 
+    Result<?> batchAuditRecipes(List<Long> ids, String action, String reason);
+
+    Result<?> batchUpdateRecipeStatus(List<Long> ids, Integer status);
+
     // --- Category Manage ---
     Result<List<RecipeCategory>> listCategories();
 

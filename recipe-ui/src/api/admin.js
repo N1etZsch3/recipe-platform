@@ -52,6 +52,22 @@ export const deleteRecipe = (id) => {
     })
 }
 
+export const batchAuditRecipes = (data) => {
+    return request({
+        url: '/api/v1/admin/recipes/batch/audit',
+        method: 'post',
+        data
+    })
+}
+
+export const batchUpdateRecipeStatus = (data) => {
+    return request({
+        url: '/api/v1/admin/recipes/batch/status',
+        method: 'put',
+        data
+    })
+}
+
 // ================== Category Management ==================
 
 export const listCategories = () => {
@@ -125,6 +141,21 @@ export const batchUpdateUserStatus = (data) => {
         url: '/api/v1/admin/users/batch/status',
         method: 'put',
         data
+    })
+}
+
+export const getUsersOnlineStatus = (userIds) => {
+    return request({
+        url: '/api/v1/admin/users/online',
+        method: 'get',
+        params: { userIds: userIds.join(',') }
+    })
+}
+
+export const kickUser = (userId) => {
+    return request({
+        url: `/api/v1/admin/users/${userId}/kick`,
+        method: 'post'
     })
 }
 

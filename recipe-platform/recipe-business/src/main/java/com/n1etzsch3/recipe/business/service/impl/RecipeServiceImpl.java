@@ -199,45 +199,86 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
         }
 
         Page<RecipeInfo> resultPage = this.page(page, wrapper);
+        List<RecipeInfo> recipes = resultPage.getRecords();
 
-        // 转换为 DTO Page
+        if (recipes.isEmpty()) {
+            return Result.ok(resultPage.convert(r -> new RecipeDetailDTO()));
+        }
+
+        // === 批量查询优化 ===
+
+        // 收集所有ID
+        List<Long> recipeIds = recipes.stream().map(RecipeInfo::getId).collect(Collectors.toList());
+        List<Long> authorIds = recipes.stream().map(RecipeInfo::getUserId).distinct().collect(Collectors.toList());
+        Long currentUserId = com.n1etzsch3.recipe.common.context.UserContext.getUserId();
+
+        // 1. 批量查询作者
+        java.util.Map<Long, SysUser> authorMap = new java.util.HashMap<>();
+        if (!authorIds.isEmpty()) {
+            List<SysUser> authors = sysUserMapper.selectList(
+                    new LambdaQueryWrapper<SysUser>().in(SysUser::getId, authorIds));
+            authors.forEach(a -> authorMap.put(a.getId(), a));
+        }
+
+        // 2. 批量查询评论计数
+        java.util.Map<Long, Long> commentCountMap = new java.util.HashMap<>();
+        List<java.util.Map<String, Object>> commentCounts = commentMapper.selectMaps(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<com.n1etzsch3.recipe.business.entity.RecipeComment>()
+                        .select("recipe_id", "count(*) as cnt")
+                        .in("recipe_id", recipeIds)
+                        .groupBy("recipe_id"));
+        for (java.util.Map<String, Object> row : commentCounts) {
+            Long rid = ((Number) row.get("recipe_id")).longValue();
+            Long cnt = ((Number) row.get("cnt")).longValue();
+            commentCountMap.put(rid, cnt);
+        }
+
+        // 3. 批量查询收藏计数
+        java.util.Map<Long, Long> favoriteCountMap = new java.util.HashMap<>();
+        List<java.util.Map<String, Object>> favoriteCounts = favoriteMapper.selectMaps(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<com.n1etzsch3.recipe.business.entity.UserFavorite>()
+                        .select("recipe_id", "count(*) as cnt")
+                        .in("recipe_id", recipeIds)
+                        .groupBy("recipe_id"));
+        for (java.util.Map<String, Object> row : favoriteCounts) {
+            Long rid = ((Number) row.get("recipe_id")).longValue();
+            Long cnt = ((Number) row.get("cnt")).longValue();
+            favoriteCountMap.put(rid, cnt);
+        }
+
+        // 4. 批量查询当前用户的收藏状态
+        java.util.Set<Long> userFavoriteRecipeIds = new java.util.HashSet<>();
+        if (currentUserId != null && !recipeIds.isEmpty()) {
+            List<com.n1etzsch3.recipe.business.entity.UserFavorite> userFavorites = favoriteMapper.selectList(
+                    new LambdaQueryWrapper<com.n1etzsch3.recipe.business.entity.UserFavorite>()
+                            .eq(com.n1etzsch3.recipe.business.entity.UserFavorite::getUserId, currentUserId)
+                            .in(com.n1etzsch3.recipe.business.entity.UserFavorite::getRecipeId, recipeIds));
+            userFavorites.forEach(f -> userFavoriteRecipeIds.add(f.getRecipeId()));
+        }
+
+        // 转换为 DTO Page (使用批量查询的数据)
         IPage<RecipeDetailDTO> dtoPage = resultPage.convert(recipe -> {
             RecipeDetailDTO dto = new RecipeDetailDTO();
             BeanUtil.copyProperties(recipe, dto);
-            // 简单列表不需要查 steps 和 ingredients，但需要作者名
-            SysUser author = sysUserMapper.selectById(recipe.getUserId());
+
+            // 作者信息 (从 Map 获取)
+            SysUser author = authorMap.get(recipe.getUserId());
             if (author != null) {
                 dto.setAuthorName(author.getNickname());
                 dto.setAuthorAvatar(author.getAvatar());
             }
 
-            // 统计评论数
-            Long recipeId = recipe.getId();
-            Long commentCnt = commentMapper.selectCount(
-                    new LambdaQueryWrapper<com.n1etzsch3.recipe.business.entity.RecipeComment>()
-                            .eq(com.n1etzsch3.recipe.business.entity.RecipeComment::getRecipeId, recipeId));
-            dto.setCommentCount(commentCnt != null ? commentCnt.intValue() : 0);
+            // 评论数 (从 Map 获取)
+            dto.setCommentCount(commentCountMap.getOrDefault(recipe.getId(), 0L).intValue());
 
-            // 统计收藏数
-            Long favoriteCnt = favoriteMapper.selectCount(
-                    new LambdaQueryWrapper<com.n1etzsch3.recipe.business.entity.UserFavorite>()
-                            .eq(com.n1etzsch3.recipe.business.entity.UserFavorite::getRecipeId, recipeId));
-            dto.setFavoriteCount(favoriteCnt != null ? favoriteCnt.intValue() : 0);
+            // 收藏数 (从 Map 获取)
+            dto.setFavoriteCount(favoriteCountMap.getOrDefault(recipe.getId(), 0L).intValue());
 
             // 分类名称映射
             dto.setCategoryName(mapCategoryIdToName(recipe.getCategoryId()));
 
-            // 检查当前用户是否收藏
-            Long currentUserId = com.n1etzsch3.recipe.common.context.UserContext.getUserId();
-            if (currentUserId != null) {
-                Long isFav = favoriteMapper.selectCount(
-                        new LambdaQueryWrapper<com.n1etzsch3.recipe.business.entity.UserFavorite>()
-                                .eq(com.n1etzsch3.recipe.business.entity.UserFavorite::getRecipeId, recipeId)
-                                .eq(com.n1etzsch3.recipe.business.entity.UserFavorite::getUserId, currentUserId));
-                dto.setIsFavorite(isFav != null && isFav > 0);
-            } else {
-                dto.setIsFavorite(false);
-            }
+            // 是否收藏 (从 Set 获取)
+            dto.setIsFavorite(userFavoriteRecipeIds.contains(recipe.getId()));
 
             return dto;
         });

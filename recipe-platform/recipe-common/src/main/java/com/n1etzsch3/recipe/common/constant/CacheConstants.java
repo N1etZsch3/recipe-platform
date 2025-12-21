@@ -17,6 +17,7 @@ public class CacheConstants {
     public static final String KEY_DASHBOARD = KEY_PREFIX + "dashboard";
     public static final String KEY_USER_INFO = KEY_PREFIX + "user:info:";
     public static final String KEY_RECIPE_DETAIL = KEY_PREFIX + "recipe:detail:";
+    public static final String KEY_RECIPE = KEY_PREFIX + "recipe:";
 
     // ==================== 安全相关 ====================
     public static final String KEY_TOKEN_BLACKLIST = KEY_PREFIX + "token:blacklist:";

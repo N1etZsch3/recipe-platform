@@ -166,85 +166,87 @@ const handleViewAll = () => {
         </div>
         
         <!-- 内容区域 -->
-        <div class="max-h-80 overflow-y-auto">
-            <!-- 通知列表 -->
-            <template v-if="activeTab === 'notification'">
-                <div v-if="notifications.length === 0" class="py-12 text-center text-gray-400">
-                    <Inbox class="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>暂无通知</p>
-                </div>
-                <div v-else class="divide-y divide-gray-50">
-                    <div 
-                        v-for="item in notifications" 
-                        :key="item.id"
-                        @click="handleItemClick(item)"
-                        class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition"
-                    >
-                        <div :class="[
-                            'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
-                            getIconConfig(item.type).bg
-                        ]">
-                            <component 
-                                :is="getIconConfig(item.type).icon" 
-                                :class="['w-5 h-5', getIconConfig(item.type).color]"
-                            />
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm text-gray-800 line-clamp-2">{{ item.content || item.title }}</p>
-                            <p class="text-xs text-gray-400 mt-1">{{ formatTime(item.timestamp || item.receivedAt) }}</p>
-                        </div>
-                        <span 
-                            v-if="!item.read" 
-                            class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"
-                        />
+        <div class="max-h-80 overflow-y-auto overflow-x-hidden relative"> <!-- Added overflow-x-hidden and relative -->
+            <Transition name="fade-slide" mode="out-in">
+                <!-- 通知列表 -->
+                <div v-if="activeTab === 'notification'" key="notification">
+                    <div v-if="notifications.length === 0" class="py-12 text-center text-gray-400">
+                        <Inbox class="w-12 h-12 mx-auto mb-2 opacity-50" />
+                        <p>暂无通知</p>
                     </div>
-                </div>
-            </template>
-            
-            <!-- 消息列表 -->
-            <template v-else-if="activeTab === 'message'">
-                <div v-if="messages.length === 0" class="py-12 text-center text-gray-400">
-                    <MessageSquare class="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>暂无私信</p>
-                </div>
-                <div v-else class="divide-y divide-gray-50">
-                    <div 
-                        v-for="item in messages" 
-                        :key="item.id"
-                        @click="handleItemClick(item)"
-                        class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition"
-                    >
-                        <img 
-                            :src="item.senderAvatar || 'https://via.placeholder.com/40'"
-                            class="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                        />
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-gray-800 truncate">
-                                {{ item.senderName || '用户' }}
-                            </p>
-                            <p class="text-xs text-gray-500 truncate mt-0.5">{{ item.content }}</p>
-                        </div>
-                        <div class="text-right flex-shrink-0">
-                            <p class="text-xs text-gray-400">{{ formatTime(item.timestamp || item.receivedAt) }}</p>
+                    <div v-else class="divide-y divide-gray-50">
+                        <div 
+                            v-for="item in notifications" 
+                            :key="item.id"
+                            @click="handleItemClick(item)"
+                            class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition"
+                        >
+                            <div :class="[
+                                'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
+                                getIconConfig(item.type).bg
+                            ]">
+                                <component 
+                                    :is="getIconConfig(item.type).icon" 
+                                    :class="['w-5 h-5', getIconConfig(item.type).color]"
+                                />
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-gray-800 line-clamp-2">{{ item.content || item.title }}</p>
+                                <p class="text-xs text-gray-400 mt-1">{{ formatTime(item.timestamp || item.receivedAt) }}</p>
+                            </div>
                             <span 
                                 v-if="!item.read" 
-                                class="inline-block w-2 h-2 bg-blue-500 rounded-full mt-1"
+                                class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"
                             />
                         </div>
                     </div>
                 </div>
-            </template>
             
-            <!-- 代办列表 (仅管理员) -->
-            <template v-else-if="activeTab === 'todo'">
-                <div v-if="todoCount === 0" class="py-12 text-center text-gray-400">
-                    <Inbox class="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>暂无代办</p>
+                <!-- 消息列表 -->
+                <div v-else-if="activeTab === 'message'" key="message">
+                    <div v-if="messages.length === 0" class="py-12 text-center text-gray-400">
+                        <MessageSquare class="w-12 h-12 mx-auto mb-2 opacity-50" />
+                        <p>暂无私信</p>
+                    </div>
+                    <div v-else class="divide-y divide-gray-50">
+                        <div 
+                            v-for="item in messages" 
+                            :key="item.id"
+                            @click="handleItemClick(item)"
+                            class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition"
+                        >
+                            <img 
+                                :src="item.senderAvatar || 'https://via.placeholder.com/40'"
+                                class="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                            />
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-800 truncate">
+                                    {{ item.senderName || '用户' }}
+                                </p>
+                                <p class="text-xs text-gray-500 truncate mt-0.5">{{ item.content }}</p>
+                            </div>
+                            <div class="text-right flex-shrink-0">
+                                <p class="text-xs text-gray-400">{{ formatTime(item.timestamp || item.receivedAt) }}</p>
+                                <span 
+                                    v-if="!item.read" 
+                                    class="inline-block w-2 h-2 bg-blue-500 rounded-full mt-1"
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <slot name="todo" v-else>
-                    <!-- 默认代办内容由父组件通过 slot 传入 -->
-                </slot>
-            </template>
+            
+                <!-- 代办列表 (仅管理员) -->
+                <div v-else-if="activeTab === 'todo'" key="todo">
+                    <div v-if="todoCount === 0" class="py-12 text-center text-gray-400">
+                        <Inbox class="w-12 h-12 mx-auto mb-2 opacity-50" />
+                        <p>暂无代办</p>
+                    </div>
+                    <slot name="todo" v-else>
+                        <!-- 默认代办内容由父组件通过 slot 传入 -->
+                    </slot>
+                </div>
+            </Transition>
         </div>
         
         <!-- 底部按钮 -->
@@ -259,3 +261,20 @@ const handleViewAll = () => {
         </div>
     </div>
 </template>
+
+<style scoped>
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.2s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+</style>
