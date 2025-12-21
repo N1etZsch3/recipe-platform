@@ -5,9 +5,12 @@ import com.n1etzsch3.recipe.business.domain.vo.UserVO;
 import com.n1etzsch3.recipe.business.domain.dto.MessageSendDTO;
 import com.n1etzsch3.recipe.business.service.SocialService;
 import com.n1etzsch3.recipe.common.core.domain.Result;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/social")
 @RequiredArgsConstructor
@@ -20,6 +23,7 @@ public class SocialController {
      */
     @PostMapping("/follow/{userId}")
     public Result<?> toggleFollow(@PathVariable Long userId) {
+        log.info("关注/取关: targetUserId={}", userId);
         return socialService.toggleFollow(userId);
     }
 
@@ -45,7 +49,7 @@ public class SocialController {
      * 发送私信
      */
     @PostMapping("/messages")
-    public Result<?> sendMessage(@RequestBody @jakarta.validation.Valid MessageSendDTO sendDTO) {
+    public Result<?> sendMessage(@RequestBody @Valid MessageSendDTO sendDTO) {
         return socialService.sendMessage(sendDTO);
     }
 

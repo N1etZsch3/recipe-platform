@@ -265,13 +265,13 @@ onMounted(() => {
             <!-- 表格滚动区域 -->
             <div class="flex-1 overflow-auto custom-scrollbar">
                 <table class="w-full text-left">
-                    <thead class="bg-white sticky top-0 z-10 text-xs font-semibold text-gray-500 uppercase">
+                    <thead class="bg-gray-50 sticky top-0 z-10 text-xs font-semibold text-gray-500 uppercase">
                         <tr class="border-b border-gray-100">
-                            <th class="p-4 w-24 text-center">排序</th>
-                            <th class="p-4 w-20">ID</th>
-                            <th class="p-4">分类名称</th>
-                            <th class="p-4">创建时间</th>
-                            <th class="p-4 text-right pr-8 w-40">操作</th>
+                            <th class="px-4 py-3 w-20 text-center">ID</th>
+                            <th class="px-4 py-3">分类名称</th>
+                            <th class="px-4 py-3 w-24 text-center">排序</th>
+                            <th class="px-4 py-3">创建时间</th>
+                            <th class="px-4 py-3 text-center w-32">操作</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-50 text-sm">
@@ -290,25 +290,12 @@ onMounted(() => {
                             v-else
                             v-for="category in visibleCategories" 
                             :key="category.id" 
-                            class="hover:bg-gray-50/80 transition group"
+                            class="hover:bg-blue-50/30 transition group"
                         >
-                             <td class="p-4 text-center text-gray-500">
-                                <div class="flex items-center justify-center gap-2">
-                                    <template v-if="editingId === category.id">
-                                        <input
-                                            v-model.number="editForm.sortOrder"
-                                            type="number"
-                                            class="w-16 px-2 py-1 bg-white border border-gray-200 rounded focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition text-sm text-center"
-                                        />
-                                    </template>
-                                    <template v-else>
-                                        <GripVertical class="w-4 h-4 text-gray-300 cursor-grab" />
-                                        <span class="inline-block w-6 text-center">{{ category.sortOrder || 0 }}</span>
-                                    </template>
-                                </div>
+                             <td class="px-4 py-3 text-center">
+                                <span class="text-gray-500 font-mono text-xs">{{ category.id }}</span>
                              </td>
-                             <td class="p-4 text-gray-500">{{ category.id }}</td>
-                             <td class="p-4">
+                             <td class="px-4 py-3">
                                 <template v-if="editingId === category.id">
                                     <input
                                         v-model="editForm.name"
@@ -320,8 +307,22 @@ onMounted(() => {
                                     <span class="font-medium text-gray-800">{{ category.name }}</span>
                                 </template>
                              </td>
-                             <td class="p-4 text-gray-500">{{ category.createTime ? new Date(category.createTime).toLocaleDateString('zh-CN') : '-' }}</td>
-                             <td class="p-4 text-right pr-6">
+                             <td class="px-4 py-3 text-center text-gray-500">
+                                <div class="flex items-center justify-center gap-2">
+                                    <template v-if="editingId === category.id">
+                                        <input
+                                            v-model.number="editForm.sortOrder"
+                                            type="number"
+                                            class="w-16 px-2 py-1 bg-white border border-gray-200 rounded focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition text-sm text-center"
+                                        />
+                                    </template>
+                                    <template v-else>
+                                        <span class="inline-block w-6 text-center">{{ category.sortOrder || 0 }}</span>
+                                    </template>
+                                </div>
+                             </td>
+                             <td class="px-4 py-3 text-gray-500 text-xs">{{ category.createTime ? new Date(category.createTime).toLocaleDateString('zh-CN') : '-' }}</td>
+                             <td class="px-4 py-3">
                                 <div class="flex items-center justify-end gap-2">
                                     <template v-if="editingId === category.id">
                                         <button 

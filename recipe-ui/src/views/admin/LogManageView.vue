@@ -262,19 +262,20 @@ onMounted(() => {
             <!-- 表格滚动区域 -->
             <div class="flex-1 overflow-auto custom-scrollbar">
                 <table class="w-full text-left">
-                    <thead class="bg-white sticky top-0 z-10 text-xs font-semibold text-gray-500 uppercase">
+                    <thead class="bg-gray-50 sticky top-0 z-10 text-xs font-semibold text-gray-500 uppercase">
                         <tr class="border-b border-gray-100">
-                            <th class="p-4 px-6 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">时间</th>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">管理员</th>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">操作</th>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">目标</th>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">详情</th>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">IP</th>
+                            <th class="px-4 py-3 w-20 text-center">ID</th>
+                            <th class="px-4 py-3">时间</th>
+                            <th class="px-4 py-3">管理员</th>
+                            <th class="px-4 py-3">操作</th>
+                            <th class="px-4 py-3">目标</th>
+                            <th class="px-4 py-3">详情</th>
+                            <th class="px-4 py-3">IP</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-50 text-sm">
                         <tr v-if="loading">
-                             <td colspan="6" class="p-12 text-center text-gray-400">
+                             <td colspan="7" class="p-12 text-center text-gray-400">
                                  <div class="flex flex-col items-center">
                                      <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                      <span class="mt-2 text-xs">加载中...</span>
@@ -282,21 +283,24 @@ onMounted(() => {
                              </td>
                         </tr>
                         <tr v-else-if="logs.length === 0">
-                             <td colspan="6" class="p-12 text-center text-gray-400">暂无操作日志</td>
+                             <td colspan="7" class="p-12 text-center text-gray-400">暂无操作日志</td>
                         </tr>
                         <tr 
                             v-else
                             v-for="log in logs" 
                             :key="log.id" 
-                            class="hover:bg-gray-50/80 transition"
+                            class="hover:bg-blue-50/30 transition"
                         >
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td class="px-4 py-3 text-center">
+                                <span class="text-gray-500 font-mono text-xs">{{ log.id }}</span>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">
                                 {{ formatDate(log.createTime) }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-4 py-3 whitespace-nowrap">
                                 <span class="text-sm font-medium text-gray-800">{{ log.adminName }}</span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-4 py-3 whitespace-nowrap">
                                 <span :class="[
                                     'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium',
                                     getOperationConfig(log.operationType).bg,
@@ -306,7 +310,7 @@ onMounted(() => {
                                     {{ log.operationTypeName }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-4 py-3 whitespace-nowrap">
                                 <div v-if="log.targetName" class="text-sm text-gray-800">
                                     {{ log.targetName }}
                                     <span class="text-gray-400 text-xs ml-1">
@@ -315,12 +319,12 @@ onMounted(() => {
                                 </div>
                                 <span v-else class="text-gray-300 text-sm">-</span>
                             </td>
-                            <td class="px-6 py-4">
+                            <td class="px-4 py-3">
                                 <span class="text-sm text-gray-500 max-w-xs truncate block" :title="log.detail">
                                     {{ log.detail || '-' }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-400">
                                 {{ log.ipAddress || '-' }}
                             </td>
                         </tr>

@@ -302,7 +302,7 @@ onMounted(() => {
             <!-- 表格滚动区域 -->
             <div class="flex-1 overflow-auto custom-scrollbar">
                 <table class="w-full text-left">
-                    <thead class="bg-white sticky top-0 z-10 text-xs font-semibold text-gray-500 uppercase">
+                    <thead class="bg-gray-50 sticky top-0 z-10 text-xs font-semibold text-gray-500 uppercase">
                         <tr class="border-b border-gray-100">
                             <th class="p-4 w-12 text-center">
                                 <input 
@@ -312,7 +312,7 @@ onMounted(() => {
                                     class="rounded border-gray-300 text-blue-500 focus:ring-blue-200 cursor-pointer" 
                                 />
                             </th>
-                            <th class="p-4 font-medium w-16">序号</th>
+                            <th class="px-4 py-3 w-20 text-center">ID</th>
                             <th class="p-4 font-medium w-1/3">评论内容</th>
                             <th class="p-4 font-medium">用户</th>
                             <th class="p-4 font-medium">关联菜谱</th>
@@ -346,7 +346,9 @@ onMounted(() => {
                                     class="rounded border-gray-300 text-blue-500 focus:ring-blue-200 cursor-pointer" 
                                 />
                             </td>
-                            <td class="p-4 text-gray-500">{{ (pagination.current - 1) * pagination.size + index + 1 }}</td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="text-gray-500 font-mono text-xs">{{ comment.id }}</span>
+                            </td>
                             <td class="p-4">
                                 <div class="text-gray-800 line-clamp-2" :title="comment.content">
                                     {{ comment.content }}

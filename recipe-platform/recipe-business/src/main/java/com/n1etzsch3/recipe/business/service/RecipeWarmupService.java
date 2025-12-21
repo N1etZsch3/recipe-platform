@@ -44,12 +44,12 @@ public class RecipeWarmupService {
     public void warmupHotRecipes() {
         log.info("开始预热热门菜谱缓存...");
         try {
-            // 查询浏览量最高的前20个已发布菜谱
+            // 查询浏览量最高的热门已发布菜谱
             List<RecipeInfo> hotRecipes = recipeInfoMapper.selectList(
                     new LambdaQueryWrapper<RecipeInfo>()
                             .eq(RecipeInfo::getStatus, RecipeConstants.STATUS_PUBLISHED)
                             .orderByDesc(RecipeInfo::getViewCount)
-                            .last("LIMIT 20"));
+                            .last("LIMIT " + RecipeConstants.WARMUP_LIMIT));
 
             int warmedCount = 0;
             for (RecipeInfo recipe : hotRecipes) {

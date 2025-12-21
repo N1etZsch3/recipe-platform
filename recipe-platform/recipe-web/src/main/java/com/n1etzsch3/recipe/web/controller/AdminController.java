@@ -16,6 +16,7 @@ import com.n1etzsch3.recipe.common.core.domain.Result;
 import com.n1etzsch3.recipe.framework.service.UserOnlineService;
 import com.n1etzsch3.recipe.system.domain.dto.LoginDTO;
 import com.n1etzsch3.recipe.system.entity.SysUser;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -59,7 +60,7 @@ public class AdminController {
     }
 
     @PostMapping("/recipes/audit")
-    public Result<?> auditRecipe(@RequestBody AuditDTO auditDTO) {
+    public Result<?> auditRecipe(@RequestBody @Valid AuditDTO auditDTO) {
         log.info("管理员提交审核: {}", auditDTO);
         return adminService.auditRecipe(auditDTO);
     }

@@ -2,7 +2,7 @@
  * 全局模态框 composable
  * 提供 confirm, prompt, alert 方法替代原生浏览器弹窗
  */
-import { ref, shallowRef } from 'vue'
+import { shallowRef } from 'vue'
 
 // 全局模态框实例引用
 const modalRef = shallowRef(null)
@@ -12,6 +12,32 @@ const modalRef = shallowRef(null)
  */
 export function setModalRef(ref) {
     modalRef.value = ref
+}
+
+/**
+ * 等待 modalRef 初始化（最多等待 1 秒）
+ */
+const waitForModal = () => {
+    return new Promise((resolve) => {
+        if (modalRef.value) {
+            resolve(true)
+            return
+        }
+        
+        let attempts = 0
+        const maxAttempts = 20
+        const interval = setInterval(() => {
+            attempts++
+            if (modalRef.value) {
+                clearInterval(interval)
+                resolve(true)
+            } else if (attempts >= maxAttempts) {
+                clearInterval(interval)
+                console.warn('Modal component not initialized after waiting')
+                resolve(false)
+            }
+        }, 50)
+    })
 }
 
 /**
@@ -28,9 +54,10 @@ export function useModal() {
      * @returns {Promise<boolean>}
      */
     const confirm = async (message, options = {}) => {
+        await waitForModal()
         if (!modalRef.value) {
-            console.warn('Modal component not initialized, falling back to native confirm')
-            return window.confirm(message)
+            console.error('Modal component not available')
+            return false
         }
         return modalRef.value.confirm(message, options)
     }
@@ -46,9 +73,10 @@ export function useModal() {
      * @returns {Promise<string|null>} - 返回输入值，取消时返回 null
      */
     const prompt = async (message, options = {}) => {
+        await waitForModal()
         if (!modalRef.value) {
-            console.warn('Modal component not initialized, falling back to native prompt')
-            return window.prompt(message, options.defaultValue || '')
+            console.error('Modal component not available')
+            return null
         }
         return modalRef.value.prompt(message, options)
     }
@@ -61,9 +89,9 @@ export function useModal() {
      * @returns {Promise<boolean>}
      */
     const alert = async (message, options = {}) => {
+        await waitForModal()
         if (!modalRef.value) {
-            console.warn('Modal component not initialized, falling back to native alert')
-            window.alert(message)
+            console.error('Modal component not available')
             return true
         }
         return modalRef.value.alert(message, options)

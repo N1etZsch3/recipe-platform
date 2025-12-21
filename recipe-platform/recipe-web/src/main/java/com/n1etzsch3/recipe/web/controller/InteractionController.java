@@ -10,11 +10,14 @@ import com.n1etzsch3.recipe.business.domain.vo.CommentLikeVO;
 import com.n1etzsch3.recipe.business.domain.vo.SystemNotificationVO;
 import com.n1etzsch3.recipe.business.service.InteractionService;
 import com.n1etzsch3.recipe.common.core.domain.Result;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/interactions")
 @RequiredArgsConstructor
@@ -27,14 +30,18 @@ public class InteractionController {
      */
     @PostMapping("/favorite/{recipeId}")
     public Result<?> toggleFavorite(@PathVariable Long recipeId) {
+        log.info("收藏/取消收藏: recipeId={}", recipeId);
         return interactionService.toggleFavorite(recipeId);
     }
 
     /**
      * 发表评论
      */
+    @com.n1etzsch3.recipe.framework.annotation.Idempotent
+    @com.n1etzsch3.recipe.framework.annotation.RateLimit(time = 60, count = 30, limitType = com.n1etzsch3.recipe.framework.annotation.RateLimit.LimitType.USER)
     @PostMapping("/comments")
-    public Result<?> addComment(@RequestBody CommentDTO commentDTO) {
+    public Result<?> addComment(@RequestBody @Valid CommentDTO commentDTO) {
+        log.info("发表评论: recipeId={}, parentId={}", commentDTO.getRecipeId(), commentDTO.getParentId());
         return interactionService.addComment(commentDTO);
     }
 

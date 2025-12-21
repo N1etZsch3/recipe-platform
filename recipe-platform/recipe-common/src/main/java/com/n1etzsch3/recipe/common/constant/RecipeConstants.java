@@ -16,4 +16,7 @@ public class RecipeConstants {
 
     /** 排序：最热 */
     public static final String SORT_HOT = "hot";
+
+    /** 缓存预热数量限制 */
+    public static final int WARMUP_LIMIT = 20;
 }

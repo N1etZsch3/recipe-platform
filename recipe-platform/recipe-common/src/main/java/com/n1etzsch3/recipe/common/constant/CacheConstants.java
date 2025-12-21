@@ -10,6 +10,7 @@ public class CacheConstants {
     public static final String CACHE_DASHBOARD = "dashboard";
     public static final String CACHE_USER = "user";
     public static final String CACHE_RECIPE = "recipe";
+    public static final String CACHE_HOT_RECIPES = "hotRecipes";
 
     // ==================== Key 前缀 ====================
     public static final String KEY_PREFIX = "recipe:";
@@ -30,5 +31,6 @@ public class CacheConstants {
     public static final long TTL_DASHBOARD = 300; // 5分钟
     public static final long TTL_USER = 1800; // 30分钟
     public static final long TTL_RECIPE = 7200; // 2小时
+    public static final long TTL_HOT_RECIPES = 600; // 10分钟
     public static final long TTL_CAPTCHA = 300; // 5分钟
 }

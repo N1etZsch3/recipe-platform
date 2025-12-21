@@ -187,6 +187,167 @@ public class AdminServiceImpl implements AdminService {
         categoryStats.sort((a, b) -> Long.compare(b.getCount(), a.getCount()));
         dto.setCategoryStats(categoryStats);
 
+        // ========== 新增用户相关统计 ==========
+
+        // 月度用户增长统计
+        QueryWrapper<SysUser> monthlyUserWrapper = new QueryWrapper<>();
+        monthlyUserWrapper.select("MONTH(create_time) as month", "COUNT(*) as count");
+        monthlyUserWrapper.apply("YEAR(create_time) = {0}", currentYear);
+        monthlyUserWrapper.groupBy("MONTH(create_time)");
+        List<Map<String, Object>> monthlyUserList = sysUserMapper.selectMaps(monthlyUserWrapper);
+
+        Map<Integer, Long> monthUserData = new HashMap<>();
+        if (monthlyUserList != null) {
+            for (Map<String, Object> map : monthlyUserList) {
+                Integer m = Convert.toInt(map.get("month"));
+                Long c = Convert.toLong(map.get("count"));
+                if (m != null)
+                    monthUserData.put(m, c);
+            }
+        }
+
+        List<DashboardDTO.MonthlyStatDTO> monthlyUserStats = new java.util.ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            monthlyUserStats.add(new DashboardDTO.MonthlyStatDTO(month, monthUserData.getOrDefault(month, 0L)));
+        }
+        dto.setMonthlyUsers(monthlyUserStats);
+
+        // 周活跃用户数（7天内有发布菜谱或评论的用户）
+        LocalDateTime weekAgo = LocalDateTime.now().minusDays(7);
+        QueryWrapper<RecipeInfo> weekRecipeWrapper = new QueryWrapper<>();
+        weekRecipeWrapper.select("DISTINCT user_id");
+        weekRecipeWrapper.ge("create_time", weekAgo);
+        List<Map<String, Object>> weekRecipeUsers = recipeInfoMapper.selectMaps(weekRecipeWrapper);
+
+        QueryWrapper<RecipeComment> weekCommentWrapper = new QueryWrapper<>();
+        weekCommentWrapper.select("DISTINCT user_id");
+        weekCommentWrapper.ge("create_time", weekAgo);
+        List<Map<String, Object>> weekCommentUsers = commentMapper.selectMaps(weekCommentWrapper);
+
+        java.util.Set<Long> activeUserIds = new java.util.HashSet<>();
+        if (weekRecipeUsers != null) {
+            weekRecipeUsers.forEach(m -> {
+                Long uid = Convert.toLong(m.get("user_id"));
+                if (uid != null)
+                    activeUserIds.add(uid);
+            });
+        }
+        if (weekCommentUsers != null) {
+            weekCommentUsers.forEach(m -> {
+                Long uid = Convert.toLong(m.get("user_id"));
+                if (uid != null)
+                    activeUserIds.add(uid);
+            });
+        }
+        dto.setWeeklyActiveUsers((long) activeUserIds.size());
+
+        // 用户增长率（本月 vs 上月）
+        int currentMonth = LocalDate.now().getMonthValue();
+        Long thisMonthUsers = monthUserData.getOrDefault(currentMonth, 0L);
+        Long lastMonthUsers = monthUserData.getOrDefault(currentMonth > 1 ? currentMonth - 1 : 12, 0L);
+        if (lastMonthUsers > 0) {
+            dto.setUserGrowthRate(((double) (thisMonthUsers - lastMonthUsers) / lastMonthUsers) * 100);
+        } else if (thisMonthUsers > 0) {
+            dto.setUserGrowthRate(100.0);
+        } else {
+            dto.setUserGrowthRate(0.0);
+        }
+
+        // 总浏览量和今日浏览量（使用菜谱的 viewCount 字段求和）
+        QueryWrapper<RecipeInfo> viewWrapper = new QueryWrapper<>();
+        viewWrapper.select("IFNULL(SUM(view_count), 0) as total");
+        List<Map<String, Object>> viewResult = recipeInfoMapper.selectMaps(viewWrapper);
+        Long totalViews = 0L;
+        if (viewResult != null && !viewResult.isEmpty()) {
+            totalViews = Convert.toLong(viewResult.get(0).get("total"));
+            if (totalViews == null)
+                totalViews = 0L;
+        }
+        dto.setTotalViews(totalViews);
+        // 今日浏览量暂时模拟（实际需要记录每日浏览日志）
+        dto.setTodayViews(dto.getTodayNewUsers() * 3 + dto.getTodayComments() * 2);
+
+        // 活跃用户列表（发布菜谱数量最多的前5名）
+        QueryWrapper<RecipeInfo> topUserWrapper = new QueryWrapper<>();
+        topUserWrapper.select("user_id", "COUNT(*) as recipe_count");
+        topUserWrapper.groupBy("user_id");
+        topUserWrapper.orderByDesc("recipe_count");
+        topUserWrapper.last("LIMIT 5");
+        List<Map<String, Object>> topUserRecipes = recipeInfoMapper.selectMaps(topUserWrapper);
+
+        List<DashboardDTO.TopUserDTO> topUsers = new java.util.ArrayList<>();
+        if (topUserRecipes != null) {
+            for (Map<String, Object> map : topUserRecipes) {
+                Long userId = Convert.toLong(map.get("user_id"));
+                Long recipeCount = Convert.toLong(map.get("recipe_count"));
+                if (userId != null) {
+                    SysUser user = sysUserMapper.selectById(userId);
+                    if (user != null) {
+                        // 获取评论数
+                        Long commentCount = commentMapper.selectCount(new LambdaQueryWrapper<RecipeComment>()
+                                .eq(RecipeComment::getUserId, userId));
+                        // 计算活跃度分数（简单算法：菜谱*10 + 评论*2，最高100）
+                        int score = Math.min(100, (int) (recipeCount * 10 + commentCount * 2));
+                        topUsers.add(new DashboardDTO.TopUserDTO(
+                                user.getId(),
+                                user.getNickname(),
+                                user.getAvatar(),
+                                recipeCount,
+                                commentCount,
+                                score,
+                                user.getCreateTime()));
+                    }
+                }
+            }
+        }
+        dto.setTopActiveUsers(topUsers);
+
+        // 最新动态（最近的菜谱发布和评论，取10条）
+        List<DashboardDTO.RecentActivityDTO> activities = new java.util.ArrayList<>();
+
+        // 最新发布的菜谱
+        List<RecipeInfo> recentRecipes = recipeInfoMapper.selectList(new LambdaQueryWrapper<RecipeInfo>()
+                .orderByDesc(RecipeInfo::getCreateTime)
+                .last("LIMIT 5"));
+        for (RecipeInfo recipe : recentRecipes) {
+            SysUser author = sysUserMapper.selectById(recipe.getUserId());
+            activities.add(new DashboardDTO.RecentActivityDTO(
+                    recipe.getUserId(),
+                    author != null ? author.getNickname() : "未知用户",
+                    author != null ? author.getAvatar() : null,
+                    "PUBLISH_RECIPE",
+                    "发布了菜谱",
+                    recipe.getTitle(),
+                    recipe.getId(),
+                    recipe.getCreateTime()));
+        }
+
+        // 最新评论
+        List<RecipeComment> recentComments = commentMapper.selectList(new LambdaQueryWrapper<RecipeComment>()
+                .orderByDesc(RecipeComment::getCreateTime)
+                .last("LIMIT 5"));
+        for (RecipeComment comment : recentComments) {
+            SysUser commenter = sysUserMapper.selectById(comment.getUserId());
+            RecipeInfo recipe = recipeInfoMapper.selectById(comment.getRecipeId());
+            String targetTitle = recipe != null ? recipe.getTitle() : "某个菜谱";
+            activities.add(new DashboardDTO.RecentActivityDTO(
+                    comment.getUserId(),
+                    commenter != null ? commenter.getNickname() : "未知用户",
+                    commenter != null ? commenter.getAvatar() : null,
+                    "COMMENT",
+                    "评论了",
+                    targetTitle,
+                    comment.getRecipeId(),
+                    comment.getCreateTime()));
+        }
+
+        // 按时间排序，取最新10条
+        activities.sort((a, b) -> b.getTime().compareTo(a.getTime()));
+        if (activities.size() > 10) {
+            activities = activities.subList(0, 10);
+        }
+        dto.setRecentActivities(activities);
+
         return Result.ok(dto);
     }
 
@@ -244,7 +405,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Result<?> deleteRecipe(Long recipeId) {
         RecipeInfo recipe = recipeInfoMapper.selectById(recipeId);
         if (recipe == null) {
@@ -268,7 +429,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Result<?> batchAuditRecipes(List<Long> ids, String action, String reason) {
         if (ids == null || ids.isEmpty()) {
             return Result.fail("请选择要审核的菜谱");
@@ -301,7 +462,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Result<?> batchUpdateRecipeStatus(List<Long> ids, Integer status) {
         if (ids == null || ids.isEmpty()) {
             return Result.fail("请选择要操作的菜谱");

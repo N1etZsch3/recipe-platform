@@ -1,6 +1,6 @@
 <script setup>
 import { RouterView, useRoute } from 'vue-router'
-import { ref, provide, watch, onMounted, onUnmounted, computed } from 'vue'
+import { ref, provide, watch, onMounted, onUnmounted, computed, watchEffect, nextTick } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { wsManager } from '@/utils/websocket'
 import { setModalRef } from '@/composables/useModal'
@@ -18,11 +18,13 @@ const isAdminRoute = computed(() => {
   return route.path.startsWith('/backstage-m9x2k7')
 })
 
-// 注册全局模态框引用
-onMounted(() => {
-  if (modalRef.value) {
-    setModalRef(modalRef.value)
-  }
+// 注册全局模态框引用 - 使用 watchEffect 确保每次渲染后都检查
+watchEffect(() => {
+  nextTick(() => {
+    if (modalRef.value) {
+      setModalRef(modalRef.value)
+    }
+  })
 })
 
 // 兼容旧的 provide 方式
@@ -70,8 +72,6 @@ onUnmounted(() => {
         <component :is="Component" />
       </Transition>
     </RouterView>
-    <Toast />
-    <Modal ref="modalRef" />
   </div>
   
   <!-- 普通用户页面 -->
@@ -84,9 +84,12 @@ onUnmounted(() => {
         </Transition>
       </RouterView>
     </div>
-    <Toast />
-    <Modal ref="modalRef" />
-    <!-- 实时通知 Toast -->
+    <!-- 实时通知 Toast - 仅用户端显示 -->
     <NotificationToast />
   </div>
+  
+  <!-- 全局组件 - 放在条件渲染外面确保始终存在 -->
+  <Toast />
+  <Modal ref="modalRef" />
 </template>
+
