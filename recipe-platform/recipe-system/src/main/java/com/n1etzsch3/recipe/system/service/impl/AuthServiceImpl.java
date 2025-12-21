@@ -5,12 +5,14 @@ import com.n1etzsch3.recipe.common.constant.UserConstants;
 import com.n1etzsch3.recipe.common.core.domain.LoginUser;
 import com.n1etzsch3.recipe.common.core.domain.Result;
 import com.n1etzsch3.recipe.common.utils.JwtUtils;
+import com.n1etzsch3.recipe.system.domain.dto.LoginDTO;
 import com.n1etzsch3.recipe.system.domain.dto.PasswordUpdateDTO;
 import com.n1etzsch3.recipe.system.domain.dto.RegisterDTO;
 import com.n1etzsch3.recipe.system.domain.dto.UserProfileDTO;
 import com.n1etzsch3.recipe.system.entity.SysUser;
 import com.n1etzsch3.recipe.system.mapper.SysUserMapper;
 import com.n1etzsch3.recipe.system.service.AuthService;
+import com.n1etzsch3.recipe.system.service.CaptchaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -25,33 +27,39 @@ public class AuthServiceImpl implements AuthService {
 
     private final SysUserMapper sysUserMapper;
     private final PasswordEncoder passwordEncoder;
+    private final CaptchaService captchaService;
 
     @Override
-    public Result<Map<String, Object>> login(String username, String password) {
-        // 1. 查询用户
+    public Result<Map<String, Object>> login(LoginDTO loginDTO) {
+        // 1. 验证验证码
+        if (!captchaService.validateCaptcha(loginDTO.getCaptchaId(), loginDTO.getCaptchaCode())) {
+            return Result.fail("验证码错误或已过期");
+        }
+
+        // 2. 查询用户
         SysUser user = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
-                .eq(SysUser::getUsername, username));
+                .eq(SysUser::getUsername, loginDTO.getUsername()));
 
         if (user == null) {
             return Result.fail("用户不存在");
         }
 
-        // 2. 禁止管理员通过普通接口登录
+        // 3. 禁止管理员通过普通接口登录
         if (UserConstants.ROLE_ADMIN.equals(user.getRole())) {
             return Result.fail("管理员请使用专用入口登录");
         }
 
-        // 3. 校验密码
-        if (!passwordEncoder.matches(password, user.getPassword())) {
+        // 4. 校验密码
+        if (!passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
             return Result.fail("密码错误");
         }
 
-        // 4. 校验状态 (DISABLE = 1 表示被封禁)
+        // 5. 校验状态 (DISABLE = 1 表示被封禁)
         if (user.getStatus() != null && user.getStatus() == UserConstants.DISABLE) {
             return Result.fail("账号已被封禁");
         }
 
-        // 5. 生成 Token
+        // 6. 生成 Token
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
         claims.put("username", user.getUsername());
@@ -59,7 +67,7 @@ public class AuthServiceImpl implements AuthService {
 
         String token = JwtUtils.generateToken(claims);
 
-        // 6. 构造返回数据
+        // 7. 构造返回数据
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("userId", user.getId());
@@ -72,14 +80,19 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public Result<?> register(RegisterDTO registerDTO) {
-        // 1. 检查用户名是否存在
+        // 1. 验证验证码
+        if (!captchaService.validateCaptcha(registerDTO.getCaptchaId(), registerDTO.getCaptchaCode())) {
+            return Result.fail("验证码错误或已过期");
+        }
+
+        // 2. 检查用户名是否存在
         SysUser exists = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
                 .eq(SysUser::getUsername, registerDTO.getUsername()));
         if (exists != null) {
             return Result.fail("用户名已存在");
         }
 
-        // 2. 创建用户
+        // 3. 创建用户
         SysUser user = new SysUser();
         user.setUsername(registerDTO.getUsername());
         String encodedPassword = passwordEncoder.encode(registerDTO.getPassword());
@@ -90,7 +103,7 @@ public class AuthServiceImpl implements AuthService {
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
 
-        // 3. 保存
+        // 4. 保存
         sysUserMapper.insert(user);
 
         return Result.ok("注册成功");

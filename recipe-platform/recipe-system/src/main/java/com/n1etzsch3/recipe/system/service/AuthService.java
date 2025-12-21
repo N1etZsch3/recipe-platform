@@ -1,6 +1,7 @@
 package com.n1etzsch3.recipe.system.service;
 
 import com.n1etzsch3.recipe.common.core.domain.Result;
+import com.n1etzsch3.recipe.system.domain.dto.LoginDTO;
 import com.n1etzsch3.recipe.system.domain.dto.PasswordUpdateDTO;
 import com.n1etzsch3.recipe.system.domain.dto.UserProfileDTO;
 import com.n1etzsch3.recipe.system.domain.dto.RegisterDTO;
@@ -12,7 +13,7 @@ public interface AuthService {
     /**
      * 登录
      */
-    Result<Map<String, Object>> login(String username, String password);
+    Result<Map<String, Object>> login(LoginDTO loginDTO);
 
     /**
      * 注册

@@ -31,3 +31,11 @@ export function updateProfile(data) {
         data
     })
 }
+
+// 获取图形验证码
+export function getCaptcha() {
+    return request({
+        url: '/api/v1/captcha',
+        method: 'get'
+    })
+}

@@ -1,10 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useToast } from '@/components/Toast.vue'
-import { login, register } from '@/api/auth'
-import { User, Lock, Smile, ArrowRight, Loader2 } from 'lucide-vue-next'
+import { login, register, getCaptcha } from '@/api/auth'
+import { User, Lock, Smile, ArrowRight, Loader2, RefreshCw, ShieldCheck } from 'lucide-vue-next'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -12,11 +12,34 @@ const { showToast } = useToast()
 
 const isLogin = ref(true)
 const loading = ref(false)
+const captchaLoading = ref(false)
 
 const form = ref({
   username: '',
   password: '',
-  nickname: ''
+  nickname: '',
+  captchaId: '',
+  captchaCode: ''
+})
+
+const captchaImage = ref('')
+
+// 获取验证码
+const fetchCaptcha = async () => {
+  captchaLoading.value = true
+  try {
+    const res = await getCaptcha()
+    form.value.captchaId = res.captchaId
+    captchaImage.value = res.imageBase64
+  } catch (error) {
+    showToast('获取验证码失败')
+  } finally {
+    captchaLoading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchCaptcha()
 })
 
 const handleSubmit = async () => {
@@ -28,16 +51,24 @@ const handleSubmit = async () => {
     showToast('请输入昵称')
     return
   }
+  if (!form.value.captchaCode) {
+    showToast('请输入验证码')
+    return
+  }
 
   loading.value = true
   try {
     if (isLogin.value) {
-      const res = await login({ username: form.value.username, password: form.value.password })
-      // res is the data map from backend
+      const res = await login({ 
+        username: form.value.username, 
+        password: form.value.password,
+        captchaId: form.value.captchaId,
+        captchaCode: form.value.captchaCode
+      })
       userStore.setToken(res.token)
       userStore.setUser({
           id: res.userId,
-          username: form.value.username, // username not in return map but we know it
+          username: form.value.username,
           nickname: res.nickname,
           avatar: res.avatar,
           role: res.role 
@@ -45,24 +76,33 @@ const handleSubmit = async () => {
       showToast('登录成功')
       router.push('/')
     } else {
-      await register({ username: form.value.username, password: form.value.password, nickname: form.value.nickname })
+      await register({ 
+        username: form.value.username, 
+        password: form.value.password, 
+        nickname: form.value.nickname,
+        captchaId: form.value.captchaId,
+        captchaCode: form.value.captchaCode
+      })
       showToast('注册成功，请登录')
       isLogin.value = true
+      fetchCaptcha()
     }
   } catch (error) {
     showToast(error.message || '操作失败')
+    fetchCaptcha() // 刷新验证码
   } finally {
     loading.value = false
+    form.value.captchaCode = '' // 清空验证码
   }
 }
 
 const toggleMode = () => {
   isLogin.value = !isLogin.value
-  form.value = { username: '', password: '', nickname: '' }
+  form.value = { username: '', password: '', nickname: '', captchaId: form.value.captchaId, captchaCode: '' }
 }
 
 const handleVisitor = () => {
-    userStore.logout() // Clear any stale data
+    userStore.logout()
     showToast('欢迎游客访问')
     router.push('/')
 }
@@ -114,8 +154,33 @@ const handleVisitor = () => {
                 type="password" 
                 class="w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-200 transition bg-gray-50 focus:bg-white"
                 placeholder="请输入密码"
-                @keyup.enter="handleSubmit"
               >
+            </div>
+          </div>
+
+          <!-- 验证码 -->
+          <div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">验证码</label>
+            <div class="flex gap-3">
+              <div class="relative flex-1">
+                <ShieldCheck class="absolute left-3 top-3 text-gray-400 w-5 h-5" />
+                <input 
+                  v-model="form.captchaCode" 
+                  type="text" 
+                  class="w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-200 transition bg-gray-50 focus:bg-white"
+                  placeholder="请输入验证码"
+                  @keyup.enter="handleSubmit"
+                >
+              </div>
+              <div 
+                @click="fetchCaptcha"
+                class="w-32 h-12 rounded-lg border bg-gray-50 cursor-pointer overflow-hidden flex items-center justify-center hover:border-orange-300 transition"
+                title="点击刷新验证码"
+              >
+                <RefreshCw v-if="captchaLoading" class="w-5 h-5 text-gray-400 animate-spin" />
+                <img v-else-if="captchaImage" :src="captchaImage" alt="验证码" class="h-full w-full object-cover" />
+                <span v-else class="text-gray-400 text-sm">加载中...</span>
+              </div>
             </div>
           </div>
 

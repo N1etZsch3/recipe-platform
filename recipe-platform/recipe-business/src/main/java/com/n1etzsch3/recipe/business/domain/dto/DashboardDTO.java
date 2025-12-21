@@ -1,6 +1,9 @@
 package com.n1etzsch3.recipe.business.domain.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.util.List;
 
 @Data
@@ -21,24 +24,18 @@ public class DashboardDTO {
     private List<CategoryStatDTO> categoryStats;
 
     @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class MonthlyStatDTO {
         private Integer month;
         private Long count;
-
-        public MonthlyStatDTO(Integer month, Long count) {
-            this.month = month;
-            this.count = count;
-        }
     }
 
     @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CategoryStatDTO {
         private String name;
         private Long count;
-
-        public CategoryStatDTO(String name, Long count) {
-            this.name = name;
-            this.count = count;
-        }
     }
 }

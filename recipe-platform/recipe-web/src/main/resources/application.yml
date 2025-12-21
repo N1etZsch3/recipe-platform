@@ -25,11 +25,24 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   
   # Redis Configuration
-#  data:
-#    redis:
-#      host: ${REDIS_HOST}
-#      port: ${REDIS_PORT}
-#      database: ${REDIS_DB}
+  data:
+    redis:
+      host: ${REDIS_HOST:49.235.238.143}
+      port: ${REDIS_PORT:26739}
+      password: ${REDIS_PASSWORD:epccLhbH4nTRT4Mp}
+      database: ${REDIS_DB:0}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1ms
+          max-idle: 8
+          min-idle: 0
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000
+      cache-null-values: false
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/*.xml

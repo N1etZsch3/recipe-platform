@@ -3,11 +3,13 @@ package com.n1etzsch3.recipe.framework.config;
 import com.n1etzsch3.recipe.common.context.UserContext;
 import com.n1etzsch3.recipe.common.core.domain.LoginUser;
 import com.n1etzsch3.recipe.common.utils.JwtUtils;
+import com.n1etzsch3.recipe.framework.service.TokenBlacklistService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -23,7 +25,10 @@ import java.util.List;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -33,6 +38,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(token) && JwtUtils.validateToken(token)) {
             try {
                 Claims claims = JwtUtils.parseToken(token);
+
+                // 检查 Token 是否在黑名单中
+                String jti = claims.getId();
+                if (jti != null && tokenBlacklistService.isBlacklisted(jti)) {
+                    log.debug("Token已被注销: jti={}", jti);
+                    SecurityContextHolder.clearContext();
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 // userId 可能是 Integer 或 Long，使用 String.valueOf 处理
                 String userId = String.valueOf(claims.get("userId"));
                 String role = String.valueOf(claims.get("role"));

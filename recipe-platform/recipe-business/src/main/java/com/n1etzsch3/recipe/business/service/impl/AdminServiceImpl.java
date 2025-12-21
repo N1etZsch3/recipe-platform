@@ -24,8 +24,11 @@ import com.n1etzsch3.recipe.business.mapper.RecipeStepMapper;
 import com.n1etzsch3.recipe.business.service.AdminService;
 import com.n1etzsch3.recipe.business.service.AdminLogService;
 import com.n1etzsch3.recipe.business.service.NotificationService;
+import com.n1etzsch3.recipe.common.constant.CacheConstants;
 import com.n1etzsch3.recipe.common.constant.RecipeConstants;
 import com.n1etzsch3.recipe.common.constant.UserConstants;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import com.n1etzsch3.recipe.common.core.domain.Result;
 import com.n1etzsch3.recipe.common.utils.JwtUtils;
 import com.n1etzsch3.recipe.system.entity.SysUser;
@@ -108,6 +111,7 @@ public class AdminServiceImpl implements AdminService {
     // ================== Dashboard ==================
 
     @Override
+    @Cacheable(value = CacheConstants.CACHE_DASHBOARD, key = "'stats'")
     public Result<DashboardDTO> getDashboard() {
         DashboardDTO dto = new DashboardDTO();
 
@@ -266,6 +270,7 @@ public class AdminServiceImpl implements AdminService {
     // ================== Category Management ==================
 
     @Override
+    @Cacheable(value = CacheConstants.CACHE_CATEGORIES, key = "'all'")
     public Result<List<RecipeCategory>> listCategories() {
         List<RecipeCategory> categories = categoryMapper.selectList(new LambdaQueryWrapper<RecipeCategory>()
                 .orderByAsc(RecipeCategory::getSortOrder)
@@ -274,6 +279,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
+    @CacheEvict(value = CacheConstants.CACHE_CATEGORIES, key = "'all'")
     public Result<?> addCategory(RecipeCategory category) {
         category.setCreateTime(LocalDateTime.now());
         categoryMapper.insert(category);
@@ -282,6 +288,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
+    @CacheEvict(value = CacheConstants.CACHE_CATEGORIES, key = "'all'")
     public Result<?> updateCategory(Integer id, RecipeCategory category) {
         RecipeCategory existing = categoryMapper.selectById(id);
         if (existing == null) {
@@ -295,6 +302,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
+    @CacheEvict(value = CacheConstants.CACHE_CATEGORIES, key = "'all'")
     public Result<?> deleteCategory(Integer id) {
         // 检查是否有菜谱使用该分类
         Long count = recipeInfoMapper.selectCount(new LambdaQueryWrapper<RecipeInfo>()

@@ -46,6 +46,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 1. 游客 (Visitor) - 放行
                         .requestMatchers("/api/v1/users/login", "/api/v1/users/register").permitAll()
+                        .requestMatchers("/api/v1/captcha").permitAll() // 验证码接口
                         .requestMatchers("/api/v1/admin/login").permitAll() // 管理员登录接口
                         .requestMatchers("/ws").permitAll() // WebSocket 端点（Token 在连接时验证）
                         .requestMatchers(HttpMethod.GET, "/api/v1/recipes/**").permitAll() // 浏览菜谱

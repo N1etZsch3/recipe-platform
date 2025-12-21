@@ -2,12 +2,16 @@ package com.n1etzsch3.recipe.web.controller;
 
 import com.n1etzsch3.recipe.common.context.UserContext;
 import com.n1etzsch3.recipe.common.core.domain.Result;
+import com.n1etzsch3.recipe.common.utils.JwtUtils;
+import com.n1etzsch3.recipe.framework.service.TokenBlacklistService;
 import com.n1etzsch3.recipe.system.domain.dto.LoginDTO;
 import com.n1etzsch3.recipe.system.domain.dto.PasswordUpdateDTO;
 import com.n1etzsch3.recipe.system.domain.dto.RegisterDTO;
 import com.n1etzsch3.recipe.system.domain.dto.UserProfileDTO;
 import com.n1etzsch3.recipe.system.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -18,6 +22,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     /**
      * 用户注册
@@ -32,7 +37,7 @@ public class AuthController {
      */
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody @jakarta.validation.Valid LoginDTO loginDTO) {
-        return authService.login(loginDTO.getUsername(), loginDTO.getPassword());
+        return authService.login(loginDTO);
     }
 
     /**
@@ -60,11 +65,23 @@ public class AuthController {
     }
 
     /**
-     * 退出登录
+     * 退出登录 - 将Token加入黑名单
      */
     @PostMapping("/logout")
-    public Result<?> logout() {
-        // JWT无状态，前端清除token即可
+    public Result<?> logout(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            String token = bearerToken.substring(7);
+            try {
+                String jti = JwtUtils.getJtiFromToken(token);
+                long remainingSeconds = JwtUtils.getRemainingExpireSeconds(token);
+                if (jti != null && remainingSeconds > 0) {
+                    tokenBlacklistService.addToBlacklist(jti, remainingSeconds);
+                }
+            } catch (Exception e) {
+                // Token 可能无效，忽略错误
+            }
+        }
         return Result.ok("退出成功");
     }
 }

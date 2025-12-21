@@ -9,6 +9,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 public class JwtUtils {
@@ -33,13 +34,15 @@ public class JwtUtils {
     }
 
     /**
-     * 生成 Token
+     * 生成 Token（包含唯一标识 jti）
      * 
      * @param claims 数据载荷
      * @return Token 字符串
      */
     public static String generateToken(Map<String, Object> claims) {
+        String jti = UUID.randomUUID().toString().replace("-", "");
         return Jwts.builder()
+                .id(jti)
                 .claims(claims)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + EXPIRATION))
@@ -103,5 +106,26 @@ public class JwtUtils {
         Claims claims = parseToken(token);
         Object role = claims.get("role");
         return role != null ? String.valueOf(role) : null;
+    }
+
+    /**
+     * 从 Token 中获取 jti（唯一标识）
+     */
+    public static String getJtiFromToken(String token) {
+        Claims claims = parseToken(token);
+        return claims.getId();
+    }
+
+    /**
+     * 获取 Token 剩余过期时间（秒）
+     */
+    public static long getRemainingExpireSeconds(String token) {
+        Claims claims = parseToken(token);
+        Date expiration = claims.getExpiration();
+        if (expiration == null) {
+            return 0;
+        }
+        long remaining = (expiration.getTime() - System.currentTimeMillis()) / 1000;
+        return Math.max(0, remaining);
     }
 }
