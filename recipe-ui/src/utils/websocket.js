@@ -28,8 +28,8 @@ class WebSocketManager {
             return
         }
 
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            console.warn('WebSocket: 已连接，跳过重复连接')
+        if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+            console.warn('WebSocket: 已连接或正在连接，跳过重复连接')
             return
         }
 

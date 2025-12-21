@@ -6,7 +6,7 @@ import { useToast } from '@/components/Toast.vue'
 import { useModal } from '@/composables/useModal'
 import { 
     Search, Eye, Check, X, Trash2, 
-    ChevronLeft, ChevronRight, Filter
+    ChevronLeft, ChevronRight, Filter, ChefHat
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -31,18 +31,13 @@ const statusOptions = [
     { value: 2, label: '已驳回' }
 ]
 
-const getStatusClass = (status) => {
-    const classes = {
-        0: 'bg-orange-100 text-orange-700',
-        1: 'bg-green-100 text-green-700',
-        2: 'bg-red-100 text-red-700'
+const getStatusConfig = (status) => {
+    const configs = {
+        0: { bg: 'bg-amber-50', text: 'text-amber-600', dot: 'bg-amber-500', label: '待审核' },
+        1: { bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-500', label: '已发布' },
+        2: { bg: 'bg-red-50', text: 'text-red-600', dot: 'bg-red-500', label: '已驳回' }
     }
-    return classes[status] || 'bg-gray-100 text-gray-600'
-}
-
-const getStatusText = (status) => {
-    const texts = { 0: '待审核', 1: '已发布', 2: '已驳回' }
-    return texts[status] || '未知'
+    return configs[status] || { bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400', label: '未知' }
 }
 
 const fetchRecipes = async () => {
@@ -126,7 +121,26 @@ const handleDelete = async (recipe) => {
     }
 }
 
-const totalPages = () => Math.ceil(pagination.value.total / pagination.value.size)
+const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.size))
+
+const visiblePages = computed(() => {
+    const pages = []
+    const total = totalPages.value
+    const current = pagination.value.current
+    
+    if (total <= 5) {
+        for (let i = 1; i <= total; i++) pages.push(i)
+    } else {
+        if (current <= 3) {
+            pages.push(1, 2, 3, 4, '...', total)
+        } else if (current >= total - 2) {
+            pages.push(1, '...', total - 3, total - 2, total - 1, total)
+        } else {
+            pages.push(1, '...', current - 1, current, current + 1, '...', total)
+        }
+    }
+    return pages
+})
 
 const formatDate = (dateStr) => {
     if (!dateStr) return '-'
@@ -134,7 +148,6 @@ const formatDate = (dateStr) => {
 }
 
 onMounted(() => {
-    // Check for status query param
     if (route.query.status !== undefined) {
         statusFilter.value = parseInt(route.query.status)
     }
@@ -143,89 +156,129 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="flex flex-col h-full">
-        <!-- 搜索和筛选栏 (固定) -->
-        <div class="bg-white rounded-xl shadow-sm p-4 flex-shrink-0">
-            <div class="flex gap-4">
-                <div class="flex-1 relative">
-                    <Search class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+    <div class="space-y-6 p-5 h-full overflow-y-auto">
+        <!-- 页面标题 -->
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">菜谱管理</h1>
+                <p class="text-sm text-gray-500 mt-1">审核和管理平台菜谱内容</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-600 rounded-xl">
+                    <ChefHat class="w-4 h-4" />
+                    <span class="text-sm font-medium">{{ pagination.total }} 道菜谱</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 搜索和筛选 -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-50 p-5">
+            <div class="flex flex-wrap gap-4">
+                <div class="flex-1 min-w-[200px] relative">
+                    <Search class="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
                     <input
                         v-model="keyword"
                         @keyup.enter="handleSearch"
                         type="text"
                         placeholder="搜索菜谱标题..."
-                        class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                        class="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-orange-200 focus:border-orange-400 focus:bg-white outline-none transition"
                     />
                 </div>
                 <div class="relative">
-                    <Filter class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
+                    <Filter class="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
                     <select
                         v-model="statusFilter"
                         @change="handleStatusChange"
-                        class="custom-select pl-10"
+                        class="appearance-none pl-11 pr-10 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-orange-200 focus:border-orange-400 focus:bg-white outline-none transition cursor-pointer min-w-[140px]"
                     >
                         <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
                             {{ opt.label }}
                         </option>
                     </select>
+                    <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </div>
                 </div>
                 <button 
                     @click="handleSearch"
-                    class="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-medium"
+                    class="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:from-orange-600 hover:to-amber-600 transition font-medium shadow-md shadow-orange-200"
                 >
                     搜索
                 </button>
             </div>
         </div>
 
-        <!-- 菜谱列表 (可滚动) -->
-        <div class="flex-1 mt-4 bg-white rounded-xl shadow-sm overflow-hidden flex flex-col min-h-0">
-            <div class="flex-1 overflow-auto">
+        <!-- 菜谱列表 -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-50 overflow-hidden">
+            <div class="overflow-x-auto">
                 <table class="w-full">
-                    <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">菜谱</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">作者</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分类</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">发布时间</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                    <thead>
+                        <tr class="border-b border-gray-100">
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">菜谱信息</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">作者</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">分类</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">发布时间</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">状态</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">操作</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200">
+                    <tbody class="divide-y divide-gray-50">
                         <tr v-if="loading" class="text-center">
-                            <td colspan="6" class="px-6 py-12 text-gray-400">加载中...</td>
+                            <td colspan="6" class="px-6 py-16 text-gray-400">
+                                <div class="flex flex-col items-center">
+                                    <div class="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                                    <span class="mt-3">加载中...</span>
+                                </div>
+                            </td>
                         </tr>
                         <tr v-else-if="recipes.length === 0" class="text-center">
-                            <td colspan="6" class="px-6 py-12 text-gray-400">暂无数据</td>
+                            <td colspan="6" class="px-6 py-16 text-gray-400">
+                                <div class="flex flex-col items-center">
+                                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                                        <ChefHat class="w-8 h-8 text-gray-300" />
+                                    </div>
+                                    <span>暂无菜谱数据</span>
+                                </div>
+                            </td>
                         </tr>
-                        <tr v-else v-for="recipe in recipes" :key="recipe.id" class="hover:bg-gray-50">
+                        <tr v-else v-for="recipe in recipes" :key="recipe.id" class="hover:bg-gray-50/50 transition group">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center gap-3">
                                     <img 
                                         :src="recipe.coverImage" 
-                                        class="w-16 h-12 rounded-lg object-cover bg-gray-200"
+                                        class="w-16 h-12 rounded-xl object-cover bg-gray-100"
                                         @error="e => e.target.src = 'https://via.placeholder.com/64'"
                                     />
                                     <div>
-                                        <div class="font-medium text-gray-900 max-w-[200px] truncate">{{ recipe.title }}</div>
-                                        <div class="text-sm text-gray-500">ID: {{ recipe.id }}</div>
+                                        <div class="font-medium text-gray-800 max-w-[200px] truncate">{{ recipe.title }}</div>
+                                        <div class="text-xs text-gray-400">ID: {{ recipe.id }}</div>
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ recipe.authorName || '-' }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ recipe.categoryName || '未分类' }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ formatDate(recipe.createTime) }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-600 text-sm">{{ recipe.authorName || '-' }}</td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span :class="['px-2 py-1 text-xs rounded-full', getStatusClass(recipe.status)]">
-                                    {{ getStatusText(recipe.status) }}
+                                <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-50 text-blue-600">
+                                    {{ recipe.categoryName || '未分类' }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ formatDate(recipe.createTime) }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span :class="[
+                                    'inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-lg',
+                                    getStatusConfig(recipe.status).bg,
+                                    getStatusConfig(recipe.status).text
+                                ]">
+                                    <span :class="['w-1.5 h-1.5 rounded-full mr-1.5', getStatusConfig(recipe.status).dot]"></span>
+                                    {{ getStatusConfig(recipe.status).label }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center gap-1">
                                     <button 
                                         @click="viewRecipe(recipe.id)"
-                                        class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                                        class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
                                         title="查看"
                                     >
                                         <Eye class="w-4 h-4" />
@@ -233,14 +286,14 @@ onMounted(() => {
                                     <template v-if="recipe.status === 0">
                                         <button 
                                             @click="passRecipe(recipe.id)"
-                                            class="p-2 text-green-500 hover:text-green-700 hover:bg-green-50 rounded-lg transition"
+                                            class="p-2 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
                                             title="通过"
                                         >
                                             <Check class="w-4 h-4" />
                                         </button>
                                         <button 
                                             @click="rejectRecipe(recipe.id)"
-                                            class="p-2 text-orange-500 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition"
+                                            class="p-2 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition"
                                             title="驳回"
                                         >
                                             <X class="w-4 h-4" />
@@ -248,7 +301,7 @@ onMounted(() => {
                                     </template>
                                     <button 
                                         @click="handleDelete(recipe)"
-                                        class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition"
+                                        class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
                                         title="删除"
                                     >
                                         <Trash2 class="w-4 h-4" />
@@ -261,27 +314,41 @@ onMounted(() => {
             </div>
 
             <!-- 分页 -->
-            <div v-if="totalPages() > 1" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
+            <div v-if="totalPages > 1" class="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
                 <span class="text-sm text-gray-500">
-                    共 {{ pagination.total }} 条记录
+                    第 {{ pagination.current }} 页，共 {{ pagination.total }} 条记录
                 </span>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1">
                     <button 
                         @click="handlePageChange(pagination.current - 1)"
                         :disabled="pagination.current <= 1"
-                        class="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="p-2 rounded-lg hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
                     >
-                        <ChevronLeft class="w-5 h-5" />
+                        <ChevronLeft class="w-4 h-4 text-gray-600" />
                     </button>
-                    <span class="px-4 py-2 text-sm">
-                        {{ pagination.current }} / {{ totalPages() }}
-                    </span>
+                    
+                    <template v-for="page in visiblePages" :key="page">
+                        <span v-if="page === '...'" class="px-2 text-gray-400">...</span>
+                        <button 
+                            v-else
+                            @click="handlePageChange(page)"
+                            :class="[
+                                'min-w-[36px] h-9 rounded-lg text-sm font-medium transition',
+                                pagination.current === page 
+                                    ? 'bg-orange-500 text-white shadow-md shadow-orange-200' 
+                                    : 'text-gray-600 hover:bg-white hover:shadow-sm'
+                            ]"
+                        >
+                            {{ page }}
+                        </button>
+                    </template>
+                    
                     <button 
                         @click="handlePageChange(pagination.current + 1)"
-                        :disabled="pagination.current >= totalPages()"
-                        class="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="pagination.current >= totalPages"
+                        class="p-2 rounded-lg hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
                     >
-                        <ChevronRight class="w-5 h-5" />
+                        <ChevronRight class="w-4 h-4 text-gray-600" />
                     </button>
                 </div>
             </div>

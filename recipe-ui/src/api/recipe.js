@@ -1,5 +1,13 @@
 import request from '@/utils/request'
 
+// 获取分类列表（公开接口）
+export function getCategories() {
+    return request({
+        url: '/api/v1/recipes/categories',
+        method: 'get'
+    })
+}
+
 export function listRecipies(params) {
     return request({
         url: '/api/v1/recipes/list',

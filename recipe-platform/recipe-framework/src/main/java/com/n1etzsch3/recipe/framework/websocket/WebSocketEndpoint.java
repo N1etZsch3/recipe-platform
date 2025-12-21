@@ -114,9 +114,9 @@ public class WebSocketEndpoint {
      * 连接关闭时调用
      */
     @OnClose
-    public void onClose() {
+    public void onClose(Session session) {
         if (userId != null) {
-            sessionManager.remove(userId);
+            sessionManager.remove(userId, session);
         }
     }
 
@@ -127,7 +127,7 @@ public class WebSocketEndpoint {
     public void onError(Session session, Throwable error) {
         log.error("WebSocket 错误: userId={}", userId, error);
         if (userId != null) {
-            sessionManager.remove(userId);
+            sessionManager.remove(userId, session);
         }
     }
 

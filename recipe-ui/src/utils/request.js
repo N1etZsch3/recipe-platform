@@ -3,7 +3,7 @@ import { useUserStore } from '@/stores/user'
 
 const request = axios.create({
     baseURL: '', // Proxy handles this
-    timeout: 5000
+    timeout: 20000
 })
 
 // Request Interceptor

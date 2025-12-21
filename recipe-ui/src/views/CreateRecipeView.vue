@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useToast } from '../components/Toast.vue'
 import { PenTool, Image, X, Loader2, Plus, Trash2 } from 'lucide-vue-next'
 import { uploadFile } from '@/api/common'
-import { createRecipe, updateRecipe, getRecipeDetail } from '@/api/recipe'
+import { createRecipe, updateRecipe, getRecipeDetail, getCategories } from '@/api/recipe'
 import { useUserStore } from '../stores/user'
 import { RECIPE_CATEGORIES } from '@/utils/constants'
 
@@ -13,7 +13,29 @@ const route = useRoute()
 const { showToast } = useToast()
 const userStore = useUserStore()
 
-const categories = RECIPE_CATEGORIES
+// 分类列表（从后端获取）
+const categories = ref([])
+const loadingCategories = ref(false)
+
+// 获取分类列表
+const fetchCategories = async () => {
+    loadingCategories.value = true
+    try {
+        const res = await getCategories()
+        if (res && res.length > 0) {
+            categories.value = res.map(c => c.name)
+        } else {
+            // 后端无数据时使用前端常量作为 fallback
+            categories.value = RECIPE_CATEGORIES
+        }
+    } catch (error) {
+        console.error('获取分类失败', error)
+        // 使用 fallback
+        categories.value = RECIPE_CATEGORIES
+    } finally {
+        loadingCategories.value = false
+    }
+}
 
 // 编辑模式
 const editId = ref(null)
@@ -114,6 +136,9 @@ const loadRecipeData = async (id) => {
 }
 
 onMounted(() => {
+    // 获取分类列表
+    fetchCategories()
+    
     const id = route.query.id
     if (id) {
         editId.value = id

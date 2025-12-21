@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -17,9 +18,9 @@ public class WebSocketSessionManager {
 
     /**
      * 存储用户ID与WebSocket会话的映射
-     * Key: userId, Value: WebSocket Session
+     * Key: userId, Value: Set of WebSocket Sessions
      */
-    private static final ConcurrentHashMap<Long, Session> USER_SESSIONS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, Set<Session>> USER_SESSIONS = new ConcurrentHashMap<>();
 
     /**
      * 注册用户会话
@@ -28,38 +29,26 @@ public class WebSocketSessionManager {
      * @param session WebSocket会话
      */
     public void register(Long userId, Session session) {
-        // 关闭旧连接（如果存在）
-        Session oldSession = USER_SESSIONS.get(userId);
-        if (oldSession != null && oldSession.isOpen()) {
-            try {
-                oldSession.close();
-                log.info("关闭用户旧的WebSocket连接: userId={}", userId);
-            } catch (IOException e) {
-                log.warn("关闭旧会话失败: userId={}", userId, e);
-            }
-        }
-        USER_SESSIONS.put(userId, session);
-        log.info("WebSocket 用户上线: userId={}, 当前在线人数: {}", userId, USER_SESSIONS.size());
+        USER_SESSIONS.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(session);
+        log.info("WebSocket 用户上线: userId={}, sessionId={}, 当前在线用户数: {}", userId, session.getId(), USER_SESSIONS.size());
     }
 
     /**
      * 移除用户会话
      * 
-     * @param userId 用户ID
+     * @param userId  用户ID
+     * @param session WebSocket会话
      */
-    public void remove(Long userId) {
-        USER_SESSIONS.remove(userId);
-        log.info("WebSocket 用户下线: userId={}, 当前在线人数: {}", userId, USER_SESSIONS.size());
-    }
-
-    /**
-     * 获取用户会话
-     * 
-     * @param userId 用户ID
-     * @return WebSocket会话，不存在则返回null
-     */
-    public Session getSession(Long userId) {
-        return USER_SESSIONS.get(userId);
+    public void remove(Long userId, Session session) {
+        Set<Session> sessions = USER_SESSIONS.get(userId);
+        if (sessions != null) {
+            sessions.remove(session);
+            if (sessions.isEmpty()) {
+                USER_SESSIONS.remove(userId);
+            }
+        }
+        log.info("WebSocket 用户会话移除: userId={}, sessionId={}, 当前在线用户数: {}", userId, session.getId(),
+                USER_SESSIONS.size());
     }
 
     /**
@@ -69,29 +58,38 @@ public class WebSocketSessionManager {
      * @return 是否在线
      */
     public boolean isOnline(Long userId) {
-        Session session = USER_SESSIONS.get(userId);
-        return session != null && session.isOpen();
+        Set<Session> sessions = USER_SESSIONS.get(userId);
+        return sessions != null && !sessions.isEmpty();
     }
 
     /**
-     * 发送消息给指定用户
+     * 发送消息给指定用户的所有会话
      * 
      * @param userId  目标用户ID
      * @param message 消息内容（JSON字符串）
-     * @return 是否发送成功
+     * @return 至少发送成功一个会话即返回true
      */
     public boolean sendMessage(Long userId, String message) {
-        Session session = USER_SESSIONS.get(userId);
-        if (session != null && session.isOpen()) {
-            try {
-                session.getBasicRemote().sendText(message);
-                log.debug("WebSocket 消息发送成功: userId={}", userId);
-                return true;
-            } catch (IOException e) {
-                log.error("WebSocket 消息发送失败: userId={}", userId, e);
+        Set<Session> sessions = USER_SESSIONS.get(userId);
+        if (sessions == null || sessions.isEmpty()) {
+            return false;
+        }
+
+        boolean sent = false;
+        for (Session session : sessions) {
+            if (session.isOpen()) {
+                try {
+                    session.getBasicRemote().sendText(message);
+                    sent = true;
+                } catch (IOException e) {
+                    log.error("WebSocket 消息发送失败: userId={}, sessionId={}", userId, session.getId(), e);
+                }
             }
         }
-        return false;
+        if (sent) {
+            log.debug("WebSocket 消息推送成功: userId={}", userId);
+        }
+        return sent;
     }
 
     /**

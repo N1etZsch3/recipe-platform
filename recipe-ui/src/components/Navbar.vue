@@ -2,9 +2,10 @@
 import { useUserStore } from '../stores/user'
 import { useRouter, useRoute } from 'vue-router'
 import { computed, inject, ref, onMounted, onUnmounted } from 'vue'
-import { LogOut, ChefHat, MessageSquare, Menu, X, Home, Compass, User, Bell, Check, CheckCheck, FileText, UserPlus, Heart, Reply } from 'lucide-vue-next'
+import { LogOut, ChefHat, MessageSquare, Menu, X, Home, Compass, User, Bell } from 'lucide-vue-next'
 import { useToast } from './Toast.vue'
 import { useNotificationStore } from '@/stores/notification'
+import NotificationCenter from '@/components/NotificationCenter.vue'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -81,35 +82,6 @@ const markAllRead = () => {
   notificationStore.markAllAsRead()
 }
 
-// 获取通知图标
-const getNotificationIcon = (type) => {
-  const icons = {
-    'NEW_MESSAGE': MessageSquare,
-    'RECIPE_APPROVED': Check,
-    'RECIPE_REJECTED': X,
-    'NEW_FOLLOWER': UserPlus,
-    'NEW_COMMENT': MessageSquare,
-    'NEW_RECIPE_PENDING': FileText,
-    'COMMENT_REPLY': Reply,
-    'COMMENT_LIKED': Heart
-  }
-  return icons[type] || Bell
-}
-
-// 获取通知颜色
-const getNotificationColor = (type) => {
-  const colors = {
-    'NEW_MESSAGE': 'text-blue-500 bg-blue-50',
-    'RECIPE_APPROVED': 'text-green-500 bg-green-50',
-    'RECIPE_REJECTED': 'text-red-500 bg-red-50',
-    'NEW_FOLLOWER': 'text-purple-500 bg-purple-50',
-    'NEW_COMMENT': 'text-orange-500 bg-orange-50',
-    'NEW_RECIPE_PENDING': 'text-amber-500 bg-amber-50',
-    'COMMENT_REPLY': 'text-cyan-500 bg-cyan-50',
-    'COMMENT_LIKED': 'text-pink-500 bg-pink-50'
-  }
-  return colors[type] || 'text-gray-500 bg-gray-50'
-}
 
 // 格式化时间
 const formatTime = (date) => {
@@ -275,70 +247,14 @@ onUnmounted(() => {
                 <div 
                   v-if="showNotifications"
                   id="notification-panel"
-                  class="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
+                  class="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50"
                 >
-                  <!-- 头部 -->
-                  <div class="px-4 py-3 bg-gradient-to-r from-orange-50 to-red-50 border-b border-gray-100 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <Bell class="w-4 h-4 text-orange-500" />
-                      <span class="font-semibold text-gray-800">通知中心</span>
-                      <span v-if="unreadCount > 0" class="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                        {{ unreadCount }}
-                      </span>
-                    </div>
-                    <button 
-                      v-if="unreadCount > 0"
-                      @click="markAllRead"
-                      class="text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1"
-                    >
-                      <CheckCheck class="w-3.5 h-3.5" />
-                      全部已读
-                    </button>
-                  </div>
-                  
-                  <!-- 通知列表 -->
-                  <div class="max-h-80 overflow-y-auto">
-                    <div v-if="recentNotifications.length === 0" class="py-12 text-center text-gray-400">
-                      <Bell class="w-10 h-10 mx-auto mb-2 opacity-30" />
-                      <p>暂无通知</p>
-                    </div>
-                    
-                    <div 
-                      v-else
-                      v-for="notification in recentNotifications" 
-                      :key="notification.id"
-                      @click="handleNotificationClick(notification)"
-                      :class="[
-                        'flex items-start gap-3 px-4 py-3 cursor-pointer transition border-b border-gray-50 last:border-0',
-                        notification.read ? 'bg-white hover:bg-gray-50' : 'bg-orange-50/50 hover:bg-orange-50'
-                      ]"
-                    >
-                      <!-- 图标 -->
-                      <div :class="['p-2 rounded-lg flex-shrink-0', getNotificationColor(notification.type)]">
-                        <component :is="getNotificationIcon(notification.type)" class="w-4 h-4" />
-                      </div>
-                      
-                      <!-- 内容 -->
-                      <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium text-gray-800 truncate">{{ notification.title }}</p>
-                        <p class="text-xs text-gray-500 truncate mt-0.5">{{ notification.content }}</p>
-                        <p class="text-xs text-gray-400 mt-1">{{ formatTime(notification.receivedAt) }}</p>
-                      </div>
-                      
-                      <!-- 未读标记 -->
-                      <div v-if="!notification.read" class="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0 mt-2"></div>
-                    </div>
-                  </div>
-                  
-                  <!-- 底部 -->
-                  <div v-if="recentNotifications.length > 0" class="px-4 py-3 bg-gray-50 border-t border-gray-100 text-center">
-                    <button 
-                      @click="router.push('/messages'); closeNotifications()"
-                      class="text-sm text-orange-500 hover:text-orange-600 font-medium"
-                    >
-                      查看全部消息 →
-                    </button>
-                  </div>
+                  <NotificationCenter 
+                    :show-todo="false"
+                    @close="closeNotifications"
+                    @mark-read="markAllRead"
+                    @view-all="router.push('/messages'); closeNotifications()"
+                  />
                 </div>
               </Transition>
             </div>

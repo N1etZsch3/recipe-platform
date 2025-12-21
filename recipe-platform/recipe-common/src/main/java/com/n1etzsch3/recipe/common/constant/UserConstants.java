@@ -16,4 +16,7 @@ public class UserConstants {
 
     /** 角色：游客 */
     public static final String ROLE_VISITOR = "visitor";
+
+    /** 角色：普通管理员 */
+    public static final String ROLE_COMMON_ADMIN = "common_admin";
 }

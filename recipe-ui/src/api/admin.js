@@ -86,6 +86,8 @@ export const deleteCategory = (id) => {
 
 // ================== User Management ==================
 
+// ================== User Management ==================
+
 export const listUsers = (params) => {
     return request({
         url: '/api/v1/admin/users',
@@ -94,9 +96,33 @@ export const listUsers = (params) => {
     })
 }
 
+export const addUser = (data) => {
+    return request({
+        url: '/api/v1/admin/users',
+        method: 'post',
+        data
+    })
+}
+
+export const updateUser = (id, data) => {
+    return request({
+        url: `/api/v1/admin/users/${id}`,
+        method: 'put',
+        data
+    })
+}
+
 export const updateUserStatus = (userId, data) => {
     return request({
         url: `/api/v1/admin/users/${userId}/status`,
+        method: 'put',
+        data
+    })
+}
+
+export const batchUpdateUserStatus = (data) => {
+    return request({
+        url: '/api/v1/admin/users/batch/status',
         method: 'put',
         data
     })

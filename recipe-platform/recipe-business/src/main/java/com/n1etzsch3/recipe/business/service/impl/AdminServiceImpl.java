@@ -1,14 +1,17 @@
 package com.n1etzsch3.recipe.business.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.convert.Convert;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.n1etzsch3.recipe.business.domain.dto.AuditDTO;
 import com.n1etzsch3.recipe.business.domain.dto.CommentDetailDTO;
 import com.n1etzsch3.recipe.business.domain.dto.DashboardDTO;
 import com.n1etzsch3.recipe.business.domain.dto.RecipeDetailDTO;
+import com.n1etzsch3.recipe.business.domain.dto.UserDTO;
 import com.n1etzsch3.recipe.business.domain.dto.UserStatusDTO;
 import com.n1etzsch3.recipe.business.entity.RecipeCategory;
 import com.n1etzsch3.recipe.business.entity.RecipeComment;
@@ -67,8 +70,9 @@ public class AdminServiceImpl implements AdminService {
             return Result.fail("用户不存在");
         }
 
-        // 2. 验证是否为管理员
-        if (!UserConstants.ROLE_ADMIN.equals(user.getRole())) {
+        // 2. 验证是否为管理员 (支持超级管理员和普通管理员)
+        if (!UserConstants.ROLE_ADMIN.equals(user.getRole())
+                && !UserConstants.ROLE_COMMON_ADMIN.equals(user.getRole())) {
             return Result.fail("非管理员账号");
         }
 
@@ -127,6 +131,57 @@ public class AdminServiceImpl implements AdminService {
 
         // 分类统计
         dto.setTotalCategories(categoryMapper.selectCount(null));
+
+        // 月度菜谱发布统计 (当前年份各月份, 使用聚合查询优化)
+        int currentYear = LocalDate.now().getYear();
+        QueryWrapper<RecipeInfo> monthlyWrapper = new QueryWrapper<>();
+        monthlyWrapper.select("MONTH(create_time) as month", "COUNT(*) as count");
+        monthlyWrapper.apply("YEAR(create_time) = {0}", currentYear);
+        monthlyWrapper.groupBy("MONTH(create_time)");
+        List<Map<String, Object>> monthlyList = recipeInfoMapper.selectMaps(monthlyWrapper);
+
+        Map<Integer, Long> monthData = new HashMap<>();
+        if (monthlyList != null) {
+            for (Map<String, Object> map : monthlyList) {
+                // Compatible with different DBs returning different types for count/month
+                Integer m = Convert.toInt(map.get("month"));
+                Long c = Convert.toLong(map.get("count"));
+                if (m != null)
+                    monthData.put(m, c);
+            }
+        }
+
+        List<DashboardDTO.MonthlyStatDTO> monthlyStats = new java.util.ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            monthlyStats.add(new DashboardDTO.MonthlyStatDTO(month, monthData.getOrDefault(month, 0L)));
+        }
+        dto.setMonthlyRecipes(monthlyStats);
+
+        // 分类菜谱分布统计 (使用聚合查询优化)
+        QueryWrapper<RecipeInfo> catWrapper = new QueryWrapper<>();
+        catWrapper.select("category_id", "COUNT(*) as count");
+        catWrapper.isNotNull("category_id");
+        catWrapper.groupBy("category_id");
+        List<Map<String, Object>> catList = recipeInfoMapper.selectMaps(catWrapper);
+
+        List<RecipeCategory> categories = categoryMapper.selectList(null);
+        Map<Integer, String> categoryNames = categories.stream()
+                .collect(java.util.stream.Collectors.toMap(RecipeCategory::getId, RecipeCategory::getName));
+
+        List<DashboardDTO.CategoryStatDTO> categoryStats = new java.util.ArrayList<>();
+        if (catList != null) {
+            for (Map<String, Object> map : catList) {
+                Integer cid = Convert.toInt(map.get("category_id"));
+                Long count = Convert.toLong(map.get("count"));
+                String name = categoryNames.get(cid);
+                if (name != null) {
+                    categoryStats.add(new DashboardDTO.CategoryStatDTO(name, count));
+                }
+            }
+        }
+        // 按数量降序排序
+        categoryStats.sort((a, b) -> Long.compare(b.getCount(), a.getCount()));
+        dto.setCategoryStats(categoryStats);
 
         return Result.ok(dto);
     }
@@ -257,18 +312,109 @@ public class AdminServiceImpl implements AdminService {
     // ================== User Management ==================
 
     @Override
-    public Result<IPage<SysUser>> pageUsers(Integer page, Integer size, String keyword) {
+    public Result<IPage<UserDTO>> pageUsers(Integer page, Integer size, String keyword, String role, String sortBy) {
         Page<SysUser> p = new Page<>(page, size);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .like(StrUtil.isNotBlank(keyword), SysUser::getNickname, keyword)
-                .or()
-                .like(StrUtil.isNotBlank(keyword), SysUser::getUsername, keyword)
-                .orderByDesc(SysUser::getCreateTime);
+                .ne(SysUser::getRole, UserConstants.ROLE_ADMIN)
+                .eq(StrUtil.isNotBlank(role), SysUser::getRole, role)
+                .and(StrUtil.isNotBlank(keyword), w -> w
+                        .like(SysUser::getNickname, keyword)
+                        .or()
+                        .like(SysUser::getUsername, keyword));
+
+        if ("oldest".equals(sortBy)) {
+            wrapper.orderByAsc(SysUser::getCreateTime);
+        } else {
+            wrapper.orderByDesc(SysUser::getCreateTime);
+        }
 
         Page<SysUser> result = sysUserMapper.selectPage(p, wrapper);
-        // 脱敏：清除密码
-        result.getRecords().forEach(user -> user.setPassword(null));
-        return Result.ok(result);
+
+        IPage<UserDTO> dtoPage = result.convert(user -> {
+            UserDTO dto = new UserDTO();
+            BeanUtil.copyProperties(user, dto);
+            dto.setPassword(null);
+
+            // 统计发布的菜谱数量
+            Long count = recipeInfoMapper.selectCount(new LambdaQueryWrapper<RecipeInfo>()
+                    .eq(RecipeInfo::getUserId, user.getId()));
+            dto.setRecipeCount(count);
+            return dto;
+        });
+
+        return Result.ok(dtoPage);
+    }
+
+    @Override
+    public Result<?> addUser(SysUser user) {
+        // 检查用户名是否存在
+        Long count = sysUserMapper.selectCount(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUsername, user.getUsername()));
+        if (count > 0) {
+            return Result.fail("用户名已存在");
+        }
+
+        // 禁止创建超级管理员
+        if (UserConstants.ROLE_ADMIN.equals(user.getRole())) {
+            return Result.fail("无法创建超级管理员");
+        }
+
+        user.setCreateTime(LocalDateTime.now());
+        user.setUpdateTime(LocalDateTime.now());
+
+        // 密码加密
+        if (StrUtil.isNotBlank(user.getPassword())) {
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
+        } else {
+            return Result.fail("密码不能为空");
+        }
+
+        // 默认状态
+        if (user.getStatus() == null) {
+            user.setStatus(UserConstants.NORMAL);
+        }
+        // 如果没有头像，设置默认? 前端可能处理
+
+        sysUserMapper.insert(user);
+        adminLogService.log("USER_ADD", "user", user.getId(), user.getUsername(), null);
+        return Result.ok("添加成功");
+    }
+
+    @Override
+    public Result<?> updateUser(Long id, SysUser user) {
+        SysUser existing = sysUserMapper.selectById(id);
+        if (existing == null) {
+            return Result.fail("用户不存在");
+        }
+
+        // 禁止操作系统超级管理员
+        if (UserConstants.ROLE_ADMIN.equals(existing.getRole())) {
+            return Result.fail("无法修改超级管理员信息");
+        }
+
+        // 禁止提升为超级管理员
+        if (UserConstants.ROLE_ADMIN.equals(user.getRole())) {
+            return Result.fail("无法设置为超级管理员角色");
+        }
+
+        existing.setNickname(user.getNickname());
+        existing.setRole(user.getRole());
+        existing.setIntro(user.getIntro());
+        existing.setUpdateTime(LocalDateTime.now());
+
+        // 更新头像 (允许为空字符串，表示删除头像)
+        if (user.getAvatar() != null) {
+            existing.setAvatar(user.getAvatar());
+        }
+
+        // 更新密码 (仅当不为空时)
+        if (StrUtil.isNotBlank(user.getPassword())) {
+            existing.setPassword(passwordEncoder.encode(user.getPassword()));
+        }
+
+        sysUserMapper.updateById(existing);
+        adminLogService.log("USER_UPDATE", "user", id, existing.getUsername(), null);
+        return Result.ok("修改成功");
     }
 
     @Override
@@ -285,6 +431,32 @@ public class AdminServiceImpl implements AdminService {
         adminLogService.log(operationType, "user", userId, user.getNickname(), null);
 
         return Result.ok("状态修改成功");
+    }
+
+    @Override
+    public Result<?> batchUpdateStatus(List<Long> ids, Integer status) {
+        if (ids == null || ids.isEmpty()) {
+            return Result.fail("未选择用户");
+        }
+
+        // 安全检查：防止操作超级管理员
+        Long adminCount = sysUserMapper.selectCount(new LambdaQueryWrapper<SysUser>()
+                .in(SysUser::getId, ids)
+                .eq(SysUser::getRole, UserConstants.ROLE_ADMIN));
+        if (adminCount > 0) {
+            return Result.fail("无法更改超级管理员状态");
+        }
+
+        SysUser update = new SysUser();
+        update.setStatus(status);
+        update.setUpdateTime(LocalDateTime.now());
+
+        sysUserMapper.update(update, new LambdaQueryWrapper<SysUser>().in(SysUser::getId, ids));
+
+        String operationType = status == 1 ? "USER_BATCH_BAN" : "USER_BATCH_UNBAN";
+        adminLogService.log(operationType, "user", 0L, "Batch count: " + ids.size(), null);
+
+        return Result.ok("批量操作成功");
     }
 
     // ================== Comment Management ==================

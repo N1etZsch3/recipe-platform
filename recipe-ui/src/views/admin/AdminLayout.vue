@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { useNotificationStore } from '@/stores/notification'
 import {
     LayoutDashboard,
     Users,
@@ -11,14 +12,20 @@ import {
     ClipboardList,
     LogOut,
     Menu,
-    X
+    ChevronRight,
+    Bell,
+    ChevronDown
 } from 'lucide-vue-next'
+import NotificationCenter from '@/components/NotificationCenter.vue'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const notificationStore = useNotificationStore()
 
 const sidebarCollapsed = ref(false)
+const showUserMenu = ref(false)
+const showNotificationPanel = ref(false)
 
 const menuItems = [
     { 
@@ -54,6 +61,27 @@ const menuItems = [
     }
 ]
 
+// 通知列表 - 从通知store获取真实数据
+const notifications = computed(() => {
+    return notificationStore.notifications.slice(0, 5)
+})
+
+const unreadCount = computed(() => notificationStore.unreadCount)
+
+
+
+const formatNotificationTime = (time) => {
+    if (!time) return ''
+    const date = new Date(time)
+    const now = new Date()
+    const diff = now - date
+    
+    if (diff < 60000) return '刚刚'
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+    return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
 const isActive = (item) => {
     if (item.exact) {
         return route.path === item.path
@@ -74,91 +102,234 @@ const handleLogout = () => {
     router.push('/backstage-m9x2k7/login')
 }
 
-const currentPageName = () => {
+const markAllAsRead = () => {
+    notificationStore.markAllAsRead()
+}
+
+const currentPageName = computed(() => {
     const item = menuItems.find(item => isActive(item))
     return item?.name || '后台管理'
-}
+})
+
+const breadcrumbs = computed(() => {
+    const crumbs = [{ name: '系统管理', path: '/backstage-m9x2k7' }]
+    const current = menuItems.find(item => isActive(item))
+    if (current) {
+        crumbs.push({ name: current.name, path: current.path })
+    }
+    return crumbs
+})
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-900 flex">
+    <div class="min-h-screen bg-gray-50 flex font-sans antialiased">
         <!-- Sidebar -->
         <aside 
             :class="[
-                'bg-gray-800 text-white transition-all duration-300 flex flex-col fixed h-full z-10',
-                sidebarCollapsed ? 'w-16' : 'w-64'
+                'bg-white border-r border-gray-100 transition-all duration-300 flex flex-col fixed h-full z-20',
+                sidebarCollapsed ? 'w-16' : 'w-52'
             ]"
         >
             <!-- Logo区域 -->
-            <div class="h-16 flex items-center justify-between px-4 border-b border-gray-700">
+            <div class="h-14 flex items-center justify-center px-3 border-b border-gray-100">
                 <div v-if="!sidebarCollapsed" class="flex items-center gap-2">
-                    <ChefHat class="w-8 h-8 text-orange-500" />
-                    <span class="font-bold text-lg">管理后台</span>
+                    <div class="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg flex items-center justify-center shadow-sm">
+                        <ChefHat class="w-4 h-4 text-white" />
+                    </div>
+                    <span class="font-semibold text-gray-800 text-sm tracking-tight">三食六记</span>
                 </div>
-                <button 
-                    @click="toggleSidebar"
-                    class="p-2 hover:bg-gray-700 rounded-lg transition"
-                >
-                    <Menu v-if="sidebarCollapsed" class="w-5 h-5" />
-                    <X v-else class="w-5 h-5" />
-                </button>
+                <div v-else class="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg flex items-center justify-center shadow-sm">
+                    <ChefHat class="w-4 h-4 text-white" />
+                </div>
             </div>
 
             <!-- 导航菜单 -->
-            <nav class="flex-1 py-4 overflow-y-auto">
-                <ul class="space-y-1 px-2">
+            <nav class="flex-1 py-3 overflow-y-auto">
+                <ul class="space-y-0.5 px-2">
                     <li v-for="item in menuItems" :key="item.path">
                         <button
                             @click="navigateTo(item.path)"
                             :class="[
-                                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all',
+                                'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all group text-sm',
                                 isActive(item) 
-                                    ? 'bg-orange-500 text-white' 
-                                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                                    ? 'text-orange-600 font-medium' 
+                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
                             ]"
                         >
-                            <component :is="item.icon" class="w-5 h-5 flex-shrink-0" />
+                            <component 
+                                :is="item.icon" 
+                                :class="[
+                                    'w-[18px] h-[18px] flex-shrink-0',
+                                    isActive(item) ? 'text-orange-500' : 'text-gray-400 group-hover:text-gray-600'
+                                ]" 
+                            />
                             <span v-if="!sidebarCollapsed" class="truncate">{{ item.name }}</span>
+                            <!-- 激活指示条 -->
+                            <span 
+                                v-if="isActive(item) && !sidebarCollapsed"
+                                class="ml-auto w-1 h-4 bg-orange-500 rounded-full"
+                            ></span>
                         </button>
                     </li>
                 </ul>
             </nav>
-
-            <!-- 用户信息 -->
-            <div class="border-t border-gray-700 p-4">
-                <div :class="['flex items-center gap-3', sidebarCollapsed ? 'justify-center' : '']">
-                    <img 
-                        :src="userStore.user?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin'" 
-                        class="w-10 h-10 rounded-full bg-gray-600"
-                    />
-                    <div v-if="!sidebarCollapsed" class="flex-1 min-w-0">
-                        <p class="text-sm font-medium truncate">{{ userStore.user?.nickname || '管理员' }}</p>
-                        <p class="text-xs text-gray-400">管理员</p>
-                    </div>
-                    <button 
-                        v-if="!sidebarCollapsed"
-                        @click="handleLogout"
-                        class="p-2 hover:bg-gray-700 rounded-lg transition text-gray-400 hover:text-white"
-                        title="退出登录"
-                    >
-                        <LogOut class="w-5 h-5" />
-                    </button>
-                </div>
-            </div>
         </aside>
 
         <!-- Main Content -->
-        <main :class="['flex-1 flex flex-col h-screen transition-all duration-300', sidebarCollapsed ? 'ml-16' : 'ml-64']">
-            <!-- Page Header (固定) -->
-            <div class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex-shrink-0">
-                <h1 class="text-xl font-semibold text-white">{{ currentPageName() }}</h1>
-            </div>
+        <main :class="['flex-1 flex flex-col min-h-screen transition-all duration-300', sidebarCollapsed ? 'ml-16' : 'ml-52']">
+            <!-- 顶部导航栏 -->
+            <header class="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-4 sticky top-0 z-10">
+                <!-- 左侧：折叠按钮 + 面包屑 -->
+                <div class="flex items-center gap-3">
+                    <!-- 折叠按钮 -->
+                    <button 
+                        @click="toggleSidebar"
+                        class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                    >
+                        <Menu class="w-5 h-5" />
+                    </button>
 
-            <!-- Page Content (可滚动) -->
-            <div class="flex-1 overflow-y-auto bg-gray-100 p-6">
+                    <!-- 分隔线 -->
+                    <div class="h-4 w-px bg-gray-200"></div>
+
+                    <!-- 面包屑 -->
+                    <div class="flex items-center gap-1.5 text-sm">
+                        <template v-for="(crumb, index) in breadcrumbs" :key="crumb.path">
+                            <button 
+                                @click="navigateTo(crumb.path)"
+                                :class="[
+                                    'hover:text-orange-500 transition',
+                                    index === breadcrumbs.length - 1 ? 'text-gray-700 font-medium' : 'text-gray-400'
+                                ]"
+                            >
+                                {{ crumb.name }}
+                            </button>
+                            <ChevronRight v-if="index < breadcrumbs.length - 1" class="w-3.5 h-3.5 text-gray-300" />
+                        </template>
+                    </div>
+                </div>
+
+                <!-- 右侧工具栏 -->
+                <div class="flex items-center gap-2">
+                    <!-- 通知按钮 -->
+                    <div class="relative">
+                        <button 
+                            @click="showNotificationPanel = !showNotificationPanel"
+                            class="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                        >
+                            <Bell class="w-5 h-5" />
+                            <span 
+                                v-if="unreadCount > 0"
+                                class="absolute top-1 right-1 min-w-[16px] h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center px-1 font-medium"
+                            >
+                                {{ unreadCount > 99 ? '99+' : unreadCount }}
+                            </span>
+                        </button>
+
+                        <!-- 通知面板 -->
+                        <transition
+                            enter-active-class="transition ease-out duration-150"
+                            enter-from-class="transform opacity-0 scale-95 -translate-y-2"
+                            enter-to-class="transform opacity-100 scale-100 translate-y-0"
+                            leave-active-class="transition ease-in duration-100"
+                            leave-from-class="transform opacity-100 scale-100"
+                            leave-to-class="transform opacity-0 scale-95"
+                        >
+                            <div v-if="showNotificationPanel" class="absolute right-0 mt-2 z-50">
+                                <NotificationCenter 
+                                    :show-todo="true"
+                                    :todo-count="0"
+                                    @close="showNotificationPanel = false"
+                                    @mark-read="markAllAsRead"
+                                />
+                            </div>
+                        </transition>
+                    </div>
+
+                    <!-- 分割线 -->
+                    <div class="h-5 w-px bg-gray-200"></div>
+
+                    <!-- 用户头像 -->
+                    <div class="relative">
+                        <button 
+                            @click="showUserMenu = !showUserMenu"
+                            class="flex items-center gap-2 p-1 hover:bg-gray-100 rounded-lg transition"
+                        >
+                            <img 
+                                :src="userStore.user?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin'" 
+                                class="w-8 h-8 rounded-lg bg-gray-100 object-cover"
+                            />
+                            <ChevronDown class="w-4 h-4 text-gray-400" />
+                        </button>
+
+                        <!-- 下拉菜单 -->
+                        <transition
+                            enter-active-class="transition ease-out duration-100"
+                            enter-from-class="transform opacity-0 scale-95"
+                            enter-to-class="transform opacity-100 scale-100"
+                            leave-active-class="transition ease-in duration-75"
+                            leave-from-class="transform opacity-100 scale-100"
+                            leave-to-class="transform opacity-0 scale-95"
+                        >
+                            <div 
+                                v-if="showUserMenu"
+                                class="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-lg border border-gray-100 py-1.5 z-50"
+                            >
+                                <div class="px-3 py-2 border-b border-gray-100">
+                                    <p class="text-sm font-medium text-gray-700">{{ userStore.user?.nickname || '管理员' }}</p>
+                                    <p class="text-xs text-gray-400">超级管理员</p>
+                                </div>
+                                <button 
+                                    @click="handleLogout"
+                                    class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-red-500 transition"
+                                >
+                                    <LogOut class="w-4 h-4" />
+                                    退出登录
+                                </button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-50/50">
                 <router-view />
             </div>
         </main>
+
+        <!-- 点击外部关闭菜单 -->
+        <div 
+            v-if="showUserMenu || showNotificationPanel" 
+            @click="showUserMenu = false; showNotificationPanel = false"
+            class="fixed inset-0 z-10"
+        ></div>
     </div>
 </template>
 
+<style scoped>
+/* 自定义滚动条 */
+nav::-webkit-scrollbar {
+    width: 3px;
+}
+
+nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+nav::-webkit-scrollbar-thumb {
+    background: #e5e7eb;
+    border-radius: 2px;
+}
+
+nav::-webkit-scrollbar-thumb:hover {
+    background: #d1d5db;
+}
+
+/* 更清晰的字体渲染 */
+.font-sans {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+</style>

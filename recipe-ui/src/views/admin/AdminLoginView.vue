@@ -1,10 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminLogin } from '@/api/admin'
 import { useUserStore } from '@/stores/user'
 import { useToast } from '@/components/Toast.vue'
-import { ChefHat, Lock, User, Eye, EyeOff } from 'lucide-vue-next'
+import { ChefHat, Lock, User, Eye, EyeOff, CheckCircle, ChevronRight, Utensils, Coffee, Soup } from 'lucide-vue-next'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -17,9 +17,70 @@ const form = ref({
 const loading = ref(false)
 const showPassword = ref(false)
 
+// 滑块验证逻辑
+const sliderRef = ref(null)
+const isVerified = ref(false)
+const sliderWidth = ref(0)
+const isDragging = ref(false)
+const startX = ref(0)
+
+const onDragStart = (e) => {
+    if (isVerified.value) return
+    isDragging.value = true
+    startX.value = e.clientX || e.touches[0].clientX
+    
+    document.addEventListener('mousemove', onDragMove)
+    document.addEventListener('mouseup', onDragEnd)
+    document.addEventListener('touchmove', onDragMove)
+    document.addEventListener('touchend', onDragEnd)
+}
+
+const onDragMove = (e) => {
+    if (!isDragging.value) return
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX)
+    if (!clientX) return
+
+    const diff = clientX - startX.value
+    const max = sliderRef.value.offsetWidth - 40 // 40 is handler width (w-10 = 2.5rem = 40px)
+    
+    if (diff > 0 && diff <= max) {
+        sliderWidth.value = diff
+    } else if (diff > max) {
+        sliderWidth.value = max
+        isVerified.value = true
+        isDragging.value = false
+        cleanUp()
+        showToast('验证通过', 'success')
+    }
+}
+
+const onDragEnd = () => {
+    if (!isVerified.value) {
+        isDragging.value = false
+        sliderWidth.value = 0 // 回弹
+    }
+    cleanUp()
+}
+
+const cleanUp = () => {
+    document.removeEventListener('mousemove', onDragMove)
+    document.removeEventListener('mouseup', onDragEnd)
+    document.removeEventListener('touchmove', onDragMove)
+    document.removeEventListener('touchend', onDragEnd)
+}
+
+onUnmounted(() => {
+    cleanUp()
+})
+
 const handleLogin = async () => {
     if (!form.value.username.trim() || !form.value.password.trim()) {
         showToast('请输入用户名和密码')
+        return
+    }
+    
+    if (!isVerified.value) {
+        showToast('请先完成滑块验证')
         return
     }
 
@@ -27,7 +88,6 @@ const handleLogin = async () => {
     try {
         const res = await adminLogin(form.value)
         if (res) {
-            // 保存用户信息到 store
             userStore.setToken(res.token)
             userStore.setUser({
                 id: res.userId,
@@ -36,12 +96,14 @@ const handleLogin = async () => {
                 avatar: res.avatar
             })
             showToast('登录成功')
-            // 管理员登录后直接进入后台
             router.push('/backstage-m9x2k7')
         }
     } catch (error) {
         console.error('Login failed:', error)
         showToast(error.message || '登录失败')
+        // 重置滑块
+        isVerified.value = false
+        sliderWidth.value = 0
     } finally {
         loading.value = false
     }
@@ -49,70 +111,193 @@ const handleLogin = async () => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-        <div class="w-full max-w-md">
-            <!-- Logo -->
-            <div class="text-center mb-8">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-orange-500 rounded-2xl mb-4">
-                    <ChefHat class="w-8 h-8 text-white" />
+    <div class="min-h-screen flex">
+        <!-- 左侧品牌展示区 -->
+        <div class="hidden lg:flex lg:w-3/5 relative overflow-hidden bg-gradient-to-br from-orange-50 via-white to-amber-50">
+            <!-- 装饰背景 -->
+            <div class="absolute top-0 right-0 w-96 h-96 bg-orange-100 rounded-full blur-3xl opacity-30 -translate-y-1/2 translate-x-1/3"></div>
+            <div class="absolute bottom-0 left-0 w-[500px] h-[500px] bg-amber-100 rounded-full blur-3xl opacity-30 translate-y-1/3 -translate-x-1/4"></div>
+
+            <!-- Logo 区域 -->
+            <div class="absolute top-10 left-10 flex items-center gap-3 z-10">
+                <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-200/50">
+                    <ChefHat class="w-7 h-7 text-white" />
                 </div>
-                <h1 class="text-2xl font-bold text-white">管理后台</h1>
-                <p class="text-gray-400 mt-2">三食六记 · 管理员专用入口</p>
+                <span class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700">三食六记</span>
             </div>
 
-            <!-- Login Form -->
-            <div class="bg-gray-800 rounded-2xl p-8 shadow-2xl">
-                <form @submit.prevent="handleLogin" class="space-y-6">
-                    <!-- Username -->
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-2">账号</label>
-                        <div class="relative">
-                            <User class="w-5 h-5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                v-model="form.username"
-                                type="text"
-                                placeholder="请输入管理员账号"
-                                class="w-full bg-gray-700 text-white pl-10 pr-4 py-3 rounded-lg border border-gray-600 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 outline-none transition"
-                            />
+            <!-- 中央内容区域 -->
+            <div class="flex-1 flex flex-col items-center justify-center p-12 relative z-10">
+                <!-- 装饰插画替代 -->
+                <div class="relative w-full max-w-lg aspect-[4/3] flex items-center justify-center mb-12">
+                    <!-- 圆环背景 -->
+                    <div class="absolute inset-0 border border-orange-100 rounded-full scale-110 animate-[spin_60s_linear_infinite]"></div>
+                    <div class="absolute inset-4 border border-dashed border-orange-200 rounded-full animate-[spin_40s_linear_infinite_reverse]"></div>
+                    
+                    <!-- 中心图标 -->
+                    <div class="relative bg-white p-8 rounded-full shadow-2xl shadow-orange-100/50 flex flex-col items-center justify-center z-20 w-48 h-48 animate-float">
+                        <div class="w-20 h-20 bg-orange-50 rounded-2xl flex items-center justify-center mb-2">
+                             <Utensils class="w-10 h-10 text-orange-500" />
                         </div>
+                        <span class="text-sm font-medium text-gray-500 mt-2">汇聚美味</span>
                     </div>
 
-                    <!-- Password -->
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-2">密码</label>
-                        <div class="relative">
-                            <Lock class="w-5 h-5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                v-model="form.password"
-                                :type="showPassword ? 'text' : 'password'"
-                                placeholder="请输入密码"
-                                class="w-full bg-gray-700 text-white pl-10 pr-12 py-3 rounded-lg border border-gray-600 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 outline-none transition"
-                            />
-                            <button
-                                type="button"
-                                @click="showPassword = !showPassword"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
-                            >
-                                <Eye v-if="!showPassword" class="w-5 h-5" />
-                                <EyeOff v-else class="w-5 h-5" />
-                            </button>
+                    <!-- 浮动标签 - 中式 -->
+                    <div class="absolute top-[10%] right-[10%] bg-white px-4 py-2 rounded-full shadow-lg shadow-amber-100/50 animate-float-delayed flex items-center gap-2">
+                        <div class="p-1.5 bg-amber-50 rounded-full">
+                            <Soup class="w-4 h-4 text-amber-500" />
                         </div>
+                        <span class="text-xs font-bold text-gray-600">中式佳肴</span>
                     </div>
 
-                    <!-- Submit -->
-                    <button
-                        type="submit"
-                        :disabled="loading"
-                        class="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ loading ? '登录中...' : '登录' }}
-                    </button>
-                </form>
+                    <!-- 浮动标签 - 烘焙 -->
+                    <div class="absolute bottom-[20%] left-[5%] bg-white px-4 py-2 rounded-full shadow-lg shadow-orange-100/50 animate-float flex items-center gap-2" style="animation-delay: 1.5s">
+                        <div class="p-1.5 bg-orange-50 rounded-full">
+                            <Coffee class="w-4 h-4 text-orange-500" />
+                        </div>
+                        <span class="text-xs font-bold text-gray-600">西点烘焙</span>
+                    </div>
 
-                <div class="mt-6 text-center">
-                    <p class="text-gray-500 text-sm">仅限授权管理员使用</p>
+                     <!-- 浮动标签 - 灵感 -->
+                    <div class="absolute bottom-[20%] right-[5%] bg-white px-4 py-2 rounded-full shadow-lg shadow-red-100/50 animate-float-delayed" style="animation-delay: 4s">
+                        <span class="text-xs font-bold text-gray-600">每日灵感 🔥</span>
+                    </div>
                 </div>
+
+                <!-- 品牌标语 -->
+                <div class="text-center space-y-4 max-w-md">
+                    <h2 class="text-4xl font-bold text-gray-800 tracking-tight leading-tight">
+                        汇聚全球美味<br>连接每一个热爱烹饪的灵魂
+                    </h2>
+                    <p class="text-lg text-gray-500 font-light">
+                        专业、高效、安全的美食社区管理平台
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧登录表单区 -->
+        <div class="w-full lg:w-2/5 flex flex-col bg-white">
+            <div class="flex-1 flex items-center justify-center px-8 lg:px-16 sm:px-12">
+                <div class="w-full max-w-[400px]">
+                    <!-- 标题 -->
+                    <div class="mb-10">
+                        <h1 class="text-3xl font-bold text-gray-900 mb-2">欢迎回来</h1>
+                        <p class="text-gray-500">请登录您的管理员账号</p>
+                    </div>
+
+                    <form @submit.prevent="handleLogin" class="space-y-6">
+                        <!-- 用户名 -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700">账号</label>
+                            <div class="relative group">
+                                <input
+                                    v-model="form.username"
+                                    type="text"
+                                    placeholder="请输入管理员账号"
+                                    class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 pl-11 text-gray-900 focus:bg-white focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all"
+                                />
+                                <User class="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors" />
+                            </div>
+                        </div>
+
+                        <!-- 密码 -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700">密码</label>
+                            <div class="relative group">
+                                <input
+                                    v-model="form.password"
+                                    :type="showPassword ? 'text' : 'password'"
+                                    placeholder="请输入密码"
+                                    class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 pl-11 text-gray-900 focus:bg-white focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all"
+                                />
+                                <Lock class="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors" />
+                                <button
+                                    type="button"
+                                    @click="showPassword = !showPassword"
+                                    class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                                >
+                                    <component :is="showPassword ? EyeOff : Eye" class="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 滑块验证 -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700">安全验证</label>
+                            <div 
+                                ref="sliderRef"
+                                class="relative w-full h-12 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden select-none"
+                                :class="{ 'border-green-500/50 bg-green-50': isVerified }"
+                            >
+                                <!-- 进度条 -->
+                                <div 
+                                    class="absolute left-0 top-0 h-full bg-green-500 transition-all duration-0"
+                                    :class="{ 'transition-all duration-300': !isDragging }"
+                                    :style="{ width: isVerified ? '100%' : sliderWidth + 'px' }"
+                                ></div>
+                                
+                                <!-- 拖动块 -->
+                                <div 
+                                    class="absolute top-0 w-10 h-full"
+                                    :style="{ left: isVerified ? 'auto' : sliderWidth + 'px', right: isVerified ? '0' : 'auto' }"
+                                    :class="{ 'cursor-grab active:cursor-grabbing': !isVerified, 'cursor-default': isVerified }"
+                                    @mousedown="onDragStart"
+                                    @touchstart="onDragStart"
+                                >
+                                    <div class="w-full h-full bg-white border border-gray-200 rounded-xl shadow-sm flex items-center justify-center hover:border-orange-400 transition-colors">
+                                         <component 
+                                            :is="isVerified ? CheckCircle : ChevronRight" 
+                                            class="w-5 h-5"
+                                            :class="isVerified ? 'text-green-500' : 'text-gray-400'"
+                                        />
+                                    </div>
+                                </div>
+
+                                <!-- 文字提示 -->
+                                <div class="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300" :class="{ 'opacity-0': isDragging || isVerified }">
+                                    <span class="text-sm text-gray-400">按住滑块拖动到最右边</span>
+                                </div>
+                                <div v-if="isVerified" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <span class="text-sm font-medium text-white shadow-sm">验证通过</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 登录按钮 -->
+                        <button
+                            type="submit"
+                            :disabled="loading"
+                            class="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white py-3.5 rounded-xl font-medium transition-all shadow-lg shadow-orange-500/30 hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none translate-y-0 active:translate-y-0.5"
+                        >
+                            <span v-if="loading" class="flex items-center justify-center gap-2">
+                                <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                登录中...
+                            </span>
+                            <span v-else>立即登录</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- 底部版权 -->
+            <div class="p-6 text-center">
+                <p class="text-xs text-gray-400">© 2025 Recipe Platform. All rights reserved.</p>
             </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+.animate-float {
+    animation: float 6s ease-in-out infinite;
+}
+.animate-float-delayed {
+    animation: float 6s ease-in-out infinite;
+    animation-delay: 3s;
+}
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+}
+</style>

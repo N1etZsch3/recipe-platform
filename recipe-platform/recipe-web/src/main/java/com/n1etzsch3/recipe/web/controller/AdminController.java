@@ -1,11 +1,13 @@
 package com.n1etzsch3.recipe.web.controller;
 
+import cn.hutool.core.convert.Convert;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.n1etzsch3.recipe.business.domain.dto.AuditDTO;
 import com.n1etzsch3.recipe.business.domain.dto.AdminOperationLogDTO;
 import com.n1etzsch3.recipe.business.domain.dto.CommentDetailDTO;
 import com.n1etzsch3.recipe.business.domain.dto.DashboardDTO;
 import com.n1etzsch3.recipe.business.domain.dto.RecipeDetailDTO;
+import com.n1etzsch3.recipe.business.domain.dto.UserDTO;
 import com.n1etzsch3.recipe.business.domain.dto.UserStatusDTO;
 import com.n1etzsch3.recipe.business.entity.RecipeCategory;
 import com.n1etzsch3.recipe.business.service.AdminLogService;
@@ -106,18 +108,40 @@ public class AdminController {
     // ================== User Management ==================
 
     @GetMapping("/users")
-    public Result<IPage<SysUser>> pageUsers(
+    public Result<IPage<UserDTO>> pageUsers(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
-            @RequestParam(required = false) String keyword) {
-        log.info("管理员获取用户列表: page={}, size={}, keyword={}", page, size, keyword);
-        return adminService.pageUsers(page, size, keyword);
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String sortBy) {
+        log.info("管理员获取用户列表: page={}, size={}, keyword={}, role={}, sortBy={}", page, size, keyword, role, sortBy);
+        return adminService.pageUsers(page, size, keyword, role, sortBy);
+    }
+
+    @PostMapping("/users")
+    public Result<?> addUser(@RequestBody SysUser user) {
+        log.info("管理员新增用户: {}", user.getUsername());
+        return adminService.addUser(user);
+    }
+
+    @PutMapping("/users/{id}")
+    public Result<?> updateUser(@PathVariable Long id, @RequestBody SysUser user) {
+        log.info("管理员修改用户: id={}", id);
+        return adminService.updateUser(id, user);
     }
 
     @PutMapping("/users/{userId}/status")
     public Result<?> updateUserStatus(@PathVariable Long userId, @RequestBody UserStatusDTO statusDTO) {
         log.info("管理员修改用户状态: userId={}, status={}", userId, statusDTO.getStatus());
         return adminService.updateUserStatus(userId, statusDTO);
+    }
+
+    @PutMapping("/users/batch/status")
+    public Result<?> batchUpdateStatus(@RequestBody Map<String, Object> params) {
+        log.info("管理员批量修改用户状态: {}", params);
+        List<Long> ids = Convert.toList(Long.class, params.get("ids"));
+        Integer status = Convert.toInt(params.get("status"));
+        return adminService.batchUpdateStatus(ids, status);
     }
 
     // ================== Comment Management ==================

@@ -1,13 +1,18 @@
 package com.n1etzsch3.recipe.web.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.n1etzsch3.recipe.business.domain.dto.RecipeDetailDTO;
 import com.n1etzsch3.recipe.business.domain.query.RecipePageQuery;
+import com.n1etzsch3.recipe.business.entity.RecipeCategory;
+import com.n1etzsch3.recipe.business.mapper.RecipeCategoryMapper;
 import com.n1etzsch3.recipe.business.service.RecipeService;
 import com.n1etzsch3.recipe.common.core.domain.Result;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -16,6 +21,20 @@ import org.springframework.web.bind.annotation.*;
 public class RecipeController {
 
     private final RecipeService recipeService;
+    private final RecipeCategoryMapper categoryMapper;
+
+    /**
+     * 获取所有分类列表（公开接口）
+     */
+    @GetMapping("/categories")
+    public Result<List<RecipeCategory>> listCategories() {
+        log.info("获取分类列表");
+        List<RecipeCategory> categories = categoryMapper.selectList(
+                new LambdaQueryWrapper<RecipeCategory>()
+                        .orderByAsc(RecipeCategory::getSortOrder)
+                        .orderByAsc(RecipeCategory::getId));
+        return Result.ok(categories);
+    }
 
     /**
      * 获取菜谱详情

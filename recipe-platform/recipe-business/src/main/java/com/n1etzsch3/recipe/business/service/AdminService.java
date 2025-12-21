@@ -37,9 +37,15 @@ public interface AdminService {
     Result<?> deleteCategory(Integer id);
 
     // --- User Manage ---
-    Result<IPage<SysUser>> pageUsers(Integer page, Integer size, String keyword);
+    Result<IPage<UserDTO>> pageUsers(Integer page, Integer size, String keyword, String role, String sortBy);
+
+    Result<?> addUser(SysUser user);
+
+    Result<?> updateUser(Long id, SysUser user);
 
     Result<?> updateUserStatus(Long userId, UserStatusDTO statusDTO);
+
+    Result<?> batchUpdateStatus(List<Long> ids, Integer status);
 
     // --- Comment Manage ---
     Result<IPage<CommentDetailDTO>> pageComments(Integer page, Integer size, String keyword,

@@ -42,6 +42,18 @@ CREATE TABLE `recipe_category` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='菜谱分类表';
 
+-- 初始化分类数据
+INSERT INTO `recipe_category` (`id`, `name`, `sort_order`) VALUES
+(1, '家常菜', 1),
+(2, '下饭菜', 2),
+(3, '烘焙', 3),
+(4, '肉类', 4),
+(5, '汤羹', 5),
+(6, '主食', 6),
+(7, '小吃', 7),
+(8, '其他', 99),
+(9, '甜品', 8);
+
 -- 表：recipe_info (菜谱主表)
 CREATE TABLE `recipe_info` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -158,3 +170,24 @@ CREATE TABLE `sys_message` (
   KEY `idx_sender` (`sender_id`),
   KEY `idx_receiver` (`receiver_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='站内私信表';
+-- ==========================================
+-- 4. 管理员模块
+-- ==========================================
+
+-- 表：admin_operation_log (管理员操作日志表)
+CREATE TABLE `admin_operation_log` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `admin_id` bigint(20) NOT NULL COMMENT '操作管理员ID',
+  `admin_name` varchar(50) NOT NULL COMMENT '管理员用户名',
+  `operation_type` varchar(50) NOT NULL COMMENT '操作类型',
+  `target_type` varchar(50) DEFAULT NULL COMMENT '目标类型(user/recipe/category/comment)',
+  `target_id` bigint(20) DEFAULT NULL COMMENT '目标ID',
+  `target_name` varchar(100) DEFAULT NULL COMMENT '目标名称(用户昵称/菜谱标题等)',
+  `detail` varchar(500) DEFAULT NULL COMMENT '操作详情/备注',
+  `ip_address` varchar(50) DEFAULT NULL COMMENT 'IP地址',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_admin_id` (`admin_id`),
+  KEY `idx_operation_type` (`operation_type`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员操作日志表';
