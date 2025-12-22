@@ -126,10 +126,10 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void sendNewRecipePending(Long recipeId, String recipeTitle, Long authorId, String authorName) {
-        // 查询所有管理员 (status = 0 表示正常状态)
+        // 查询所有管理员（正常状态）
         List<SysUser> admins = sysUserMapper.selectList(new LambdaQueryWrapper<SysUser>()
                 .eq(SysUser::getRole, "admin")
-                .eq(SysUser::getStatus, 0)); // 0=正常, 1=封禁
+                .eq(SysUser::getStatus, com.n1etzsch3.recipe.common.constant.UserConstants.NORMAL));
 
         if (admins.isEmpty()) {
             log.warn("没有找到管理员，无法发送待审核通知");
@@ -235,10 +235,10 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void broadcastToAdmins(WebSocketMessage message) {
-        // 查询所有管理员（包括超级管理员和普通管理员）
+        // 查询所有管理员（包括超级管理员和普通管理员，正常状态）
         List<SysUser> admins = sysUserMapper.selectList(new LambdaQueryWrapper<SysUser>()
                 .in(SysUser::getRole, "admin", "common_admin")
-                .eq(SysUser::getStatus, 0)); // 0=正常
+                .eq(SysUser::getStatus, com.n1etzsch3.recipe.common.constant.UserConstants.NORMAL));
 
         if (admins.isEmpty()) {
             return;

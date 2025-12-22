@@ -49,7 +49,7 @@ public class UserOnlineService {
      */
     public boolean isOnline(Long userId) {
         String key = KEY_USER_SESSION + userId;
-        return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+        return redisTemplate.hasKey(key);
     }
 
     /**

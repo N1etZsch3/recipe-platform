@@ -1,9 +1,14 @@
 package com.n1etzsch3.recipe.web.controller;
 
-import cn.hutool.core.convert.Convert;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.n1etzsch3.recipe.business.domain.dto.AuditDTO;
+import com.n1etzsch3.recipe.business.domain.dto.AdminBatchAuditDTO;
+import com.n1etzsch3.recipe.business.domain.dto.AdminCategoryDTO;
 import com.n1etzsch3.recipe.business.domain.dto.AdminOperationLogDTO;
+import com.n1etzsch3.recipe.business.domain.dto.AdminRecipeBatchStatusDTO;
+import com.n1etzsch3.recipe.business.domain.dto.AdminUserBatchStatusDTO;
+import com.n1etzsch3.recipe.business.domain.dto.AdminUserCreateDTO;
+import com.n1etzsch3.recipe.business.domain.dto.AdminUserUpdateDTO;
+import com.n1etzsch3.recipe.business.domain.dto.AuditDTO;
 import com.n1etzsch3.recipe.business.domain.dto.CommentDetailDTO;
 import com.n1etzsch3.recipe.business.domain.dto.DashboardDTO;
 import com.n1etzsch3.recipe.business.domain.dto.RecipeDetailDTO;
@@ -21,7 +26,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -37,7 +41,7 @@ public class AdminController {
     // ================== Admin Login ==================
 
     @PostMapping("/login")
-    public Result<Map<String, Object>> adminLogin(@RequestBody LoginDTO loginDTO) {
+    public Result<Map<String, Object>> adminLogin(@RequestBody @Valid LoginDTO loginDTO) {
         log.info("管理员登录: {}", loginDTO.getUsername());
         return adminService.adminLogin(loginDTO.getUsername(), loginDTO.getPassword());
     }
@@ -87,23 +91,19 @@ public class AdminController {
      * 批量审核菜谱
      */
     @PostMapping("/recipes/batch/audit")
-    public Result<?> batchAuditRecipes(@RequestBody Map<String, Object> params) {
-        log.info("管理员批量审核菜谱: {}", params);
-        List<Long> ids = Convert.toList(Long.class, params.get("ids"));
-        String action = Convert.toStr(params.get("action")); // pass / reject
-        String reason = Convert.toStr(params.get("reason"), "");
-        return adminService.batchAuditRecipes(ids, action, reason);
+    public Result<?> batchAuditRecipes(@RequestBody @Valid AdminBatchAuditDTO dto) {
+        log.info("管理员批量审核菜谱: {}", dto);
+        String reason = dto.getReason() != null ? dto.getReason() : "";
+        return adminService.batchAuditRecipes(dto.getIds(), dto.getAction(), reason);
     }
 
     /**
      * 批量更新菜谱状态 (上架/下架)
      */
     @PutMapping("/recipes/batch/status")
-    public Result<?> batchUpdateRecipeStatus(@RequestBody Map<String, Object> params) {
-        log.info("管理员批量更新菜谱状态: {}", params);
-        List<Long> ids = Convert.toList(Long.class, params.get("ids"));
-        Integer status = Convert.toInt(params.get("status"));
-        return adminService.batchUpdateRecipeStatus(ids, status);
+    public Result<?> batchUpdateRecipeStatus(@RequestBody @Valid AdminRecipeBatchStatusDTO dto) {
+        log.info("管理员批量更新菜谱状态: {}", dto);
+        return adminService.batchUpdateRecipeStatus(dto.getIds(), dto.getStatus());
     }
 
     // ================== Category Management ==================
@@ -114,14 +114,20 @@ public class AdminController {
     }
 
     @PostMapping("/categories")
-    public Result<?> addCategory(@RequestBody RecipeCategory category) {
-        log.info("管理员新增分类: {}", category.getName());
+    public Result<?> addCategory(@RequestBody @Valid AdminCategoryDTO dto) {
+        log.info("管理员新增分类: {}", dto.getName());
+        RecipeCategory category = new RecipeCategory();
+        category.setName(dto.getName());
+        category.setSortOrder(dto.getSortOrder());
         return adminService.addCategory(category);
     }
 
     @PutMapping("/categories/{id}")
-    public Result<?> updateCategory(@PathVariable Integer id, @RequestBody RecipeCategory category) {
-        log.info("管理员修改分类: id={}, name={}", id, category.getName());
+    public Result<?> updateCategory(@PathVariable Integer id, @RequestBody @Valid AdminCategoryDTO dto) {
+        log.info("管理员修改分类: id={}, name={}", id, dto.getName());
+        RecipeCategory category = new RecipeCategory();
+        category.setName(dto.getName());
+        category.setSortOrder(dto.getSortOrder());
         return adminService.updateCategory(id, category);
     }
 
@@ -145,29 +151,41 @@ public class AdminController {
     }
 
     @PostMapping("/users")
-    public Result<?> addUser(@RequestBody SysUser user) {
-        log.info("管理员新增用户: {}", user.getUsername());
+    public Result<?> addUser(@RequestBody @Valid AdminUserCreateDTO dto) {
+        log.info("管理员新增用户: {}", dto.getUsername());
+        SysUser user = new SysUser();
+        user.setUsername(dto.getUsername());
+        user.setPassword(dto.getPassword());
+        user.setNickname(dto.getNickname());
+        user.setRole(dto.getRole());
+        user.setIntro(dto.getIntro());
+        user.setAvatar(dto.getAvatar());
+        user.setStatus(dto.getStatus());
         return adminService.addUser(user);
     }
 
     @PutMapping("/users/{id}")
-    public Result<?> updateUser(@PathVariable Long id, @RequestBody SysUser user) {
+    public Result<?> updateUser(@PathVariable Long id, @RequestBody @Valid AdminUserUpdateDTO dto) {
         log.info("管理员修改用户: id={}", id);
+        SysUser user = new SysUser();
+        user.setNickname(dto.getNickname());
+        user.setRole(dto.getRole());
+        user.setIntro(dto.getIntro());
+        user.setAvatar(dto.getAvatar());
+        user.setPassword(dto.getPassword());
         return adminService.updateUser(id, user);
     }
 
     @PutMapping("/users/{userId}/status")
-    public Result<?> updateUserStatus(@PathVariable Long userId, @RequestBody UserStatusDTO statusDTO) {
+    public Result<?> updateUserStatus(@PathVariable Long userId, @RequestBody @Valid UserStatusDTO statusDTO) {
         log.info("管理员修改用户状态: userId={}, status={}", userId, statusDTO.getStatus());
         return adminService.updateUserStatus(userId, statusDTO);
     }
 
     @PutMapping("/users/batch/status")
-    public Result<?> batchUpdateStatus(@RequestBody Map<String, Object> params) {
-        log.info("管理员批量修改用户状态: {}", params);
-        List<Long> ids = Convert.toList(Long.class, params.get("ids"));
-        Integer status = Convert.toInt(params.get("status"));
-        return adminService.batchUpdateStatus(ids, status);
+    public Result<?> batchUpdateStatus(@RequestBody @Valid AdminUserBatchStatusDTO dto) {
+        log.info("管理员批量修改用户状态: {}", dto);
+        return adminService.batchUpdateStatus(dto.getIds(), dto.getStatus());
     }
 
     /**

@@ -66,24 +66,12 @@ public class RecipeController {
      * 创建/发布菜谱（简化版 - 前端提交）
      */
     @Idempotent
-    @RateLimit(time = 60, count = 10, limitType = RateLimit.LimitType.USER)
+    @RateLimit(time = 60, count = 10, limitType = RateLimit.LimitType.USER)  // 对可能造成的高流量消耗进行限流
     @PostMapping
     public Result<?> createRecipe(@RequestBody @Valid SimpleRecipeDTO dto) {
         log.info("收到创建菜谱请求: title={}, category={}", dto.getTitle(), dto.getCategory());
 
-        // 构建 RecipePublishDTO
-        RecipePublishDTO publishDTO = new RecipePublishDTO();
-        publishDTO.setTitle(dto.getTitle());
-        publishDTO.setCoverImage(dto.getCoverImage());
-        publishDTO.setDescription(dto.getContent());
-
-        // 分类转换：使用 CategoryService 动态获取分类ID
-        Integer categoryId = categoryService.getIdByName(dto.getCategory());
-        publishDTO.setCategoryId(categoryId);
-
-        // 设置空的食材和步骤列表（简化版）
-        publishDTO.setIngredients(Collections.emptyList());
-        publishDTO.setSteps(Collections.emptyList());
+        RecipePublishDTO publishDTO = buildPublishDTO(dto);
 
         return recipeService.publishRecipe(publishDTO);
     }
@@ -95,9 +83,15 @@ public class RecipeController {
     public Result<?> updateRecipe(@RequestBody @Valid SimpleRecipeDTO dto) {
         log.info("收到更新菜谱请求: id={}, title={}", dto.getId(), dto.getTitle());
 
-        // 构建更新的 RecipePublishDTO
-        RecipePublishDTO publishDTO = new RecipePublishDTO();
+        RecipePublishDTO publishDTO = buildPublishDTO(dto);
         publishDTO.setId(dto.getId());
+
+        return recipeService.updateRecipe(publishDTO);
+    }
+
+    private RecipePublishDTO buildPublishDTO(SimpleRecipeDTO dto) {
+        // 构建 RecipePublishDTO
+        RecipePublishDTO publishDTO = new RecipePublishDTO();
         publishDTO.setTitle(dto.getTitle());
         publishDTO.setCoverImage(dto.getCoverImage());
         publishDTO.setDescription(dto.getContent());
@@ -107,10 +101,11 @@ public class RecipeController {
         publishDTO.setCategoryId(categoryId);
 
         // 设置空的食材和步骤列表（简化版）
+        // TODO: 前端提交完整结构后，在此映射 ingredients/steps（含排序字段），并移除空列表占位。
         publishDTO.setIngredients(Collections.emptyList());
         publishDTO.setSteps(Collections.emptyList());
 
-        return recipeService.updateRecipe(publishDTO);
+        return publishDTO;
     }
 
     /**

@@ -24,9 +24,18 @@ public class JwtUtils {
         if (key == null) {
             synchronized (JwtUtils.class) {
                 if (key == null) {
-                    String secret = System.getProperty("JWT_SECRET",
-                            "n1etzsch3RecipeDefaultSecretKeyForDevOnly123");
-                    key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+                    String secret = System.getProperty("JWT_SECRET");
+                    if (secret == null || secret.isBlank()) {
+                        secret = System.getenv("JWT_SECRET");
+                    }
+                    if (secret == null || secret.isBlank()) {
+                        throw new IllegalStateException("JWT_SECRET is not configured");
+                    }
+                    byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+                    if (keyBytes.length < 32) {
+                        throw new IllegalStateException("JWT_SECRET must be at least 32 bytes for HS256");
+                    }
+                    key = Keys.hmacShaKeyFor(keyBytes);
                 }
             }
         }

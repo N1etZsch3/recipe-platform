@@ -31,7 +31,7 @@ public class AuthController {
     /**
      * 用户注册
      */
-    @RateLimit(time = 60, count = 3, limitType = RateLimit.LimitType.IP)
+    @RateLimit(time = 60, count = 3, limitType = RateLimit.LimitType.IP)    // 接口限流：同一个IP在60s内最多调用3次
     @PostMapping("/register")
     public Result<?> register(@RequestBody @Valid RegisterDTO registerDTO) {
         log.info("用户注册请求: username={}", registerDTO.getUsername());
@@ -101,7 +101,7 @@ public class AuthController {
                     tokenBlacklistService.addToBlacklist(jti, remainingSeconds);
                 }
             } catch (Exception e) {
-                // Token 可能无效，忽略错误
+                log.debug("退出登录解析Token失败: userId={}", UserContext.getUserId(), e);
             }
         }
         return Result.ok("退出成功");

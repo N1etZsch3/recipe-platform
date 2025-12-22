@@ -159,6 +159,7 @@ public class AdminLogServiceImpl implements AdminLogService {
             }
             return ip;
         } catch (Exception e) {
+            log.warn("获取客户端IP失败", e);
             return null;
         }
     }

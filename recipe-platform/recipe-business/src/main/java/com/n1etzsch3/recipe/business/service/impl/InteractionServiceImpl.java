@@ -2,6 +2,7 @@ package com.n1etzsch3.recipe.business.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.n1etzsch3.recipe.business.domain.dto.CommentDTO;
@@ -26,11 +27,13 @@ import com.n1etzsch3.recipe.common.core.domain.Result;
 import com.n1etzsch3.recipe.system.entity.SysUser;
 import com.n1etzsch3.recipe.system.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -111,7 +114,8 @@ public class InteractionServiceImpl implements InteractionService {
                         recipeTitle);
             }
         } catch (Exception e) {
-            // 通知失败不影响评论写入
+            log.warn("评论通知发送失败: userId={}, recipeId={}, parentId={}",
+                    userId, commentDTO.getRecipeId(), commentDTO.getParentId(), e);
         }
 
         return Result.ok("评论成功");
@@ -183,33 +187,45 @@ public class InteractionServiceImpl implements InteractionService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Result<?> toggleCommentLike(Long commentId) {
         Long userId = UserContext.getUserId();
         if (userId == null)
             return Result.fail("未登录");
-
-        CommentLike like = commentLikeMapper.selectOne(new LambdaQueryWrapper<CommentLike>()
-                .eq(CommentLike::getCommentId, commentId)
-                .eq(CommentLike::getUserId, userId));
 
         RecipeComment comment = commentMapper.selectById(commentId);
         if (comment == null) {
             return Result.fail("评论不存在");
         }
 
+        CommentLike like = commentLikeMapper.selectOne(new LambdaQueryWrapper<CommentLike>()
+                .eq(CommentLike::getCommentId, commentId)
+                .eq(CommentLike::getUserId, userId));
+
         if (like != null) {
-            commentLikeMapper.deleteById(like.getId());
-            comment.setLikeCount(Math.max(0, (comment.getLikeCount() != null ? comment.getLikeCount() : 0) - 1));
-            commentMapper.updateById(comment);
+            int deleted = commentLikeMapper.deleteById(like.getId());
+            if (deleted > 0) {
+                LambdaUpdateWrapper<RecipeComment> updateWrapper = new LambdaUpdateWrapper<>();
+                updateWrapper.eq(RecipeComment::getId, commentId)
+                        .setSql("like_count = GREATEST(COALESCE(like_count, 0) - 1, 0)");
+                commentMapper.update(null, updateWrapper);
+            }
             return Result.ok("已取消点赞");
         } else {
             like = new CommentLike();
             like.setCommentId(commentId);
             like.setUserId(userId);
             like.setCreateTime(LocalDateTime.now());
-            commentLikeMapper.insert(like);
-            comment.setLikeCount((comment.getLikeCount() != null ? comment.getLikeCount() : 0) + 1);
-            commentMapper.updateById(comment);
+            try {
+                commentLikeMapper.insert(like);
+            } catch (DuplicateKeyException e) {
+                return Result.ok("已点赞");
+            }
+
+            LambdaUpdateWrapper<RecipeComment> updateWrapper = new LambdaUpdateWrapper<>();
+            updateWrapper.eq(RecipeComment::getId, commentId)
+                    .setSql("like_count = COALESCE(like_count, 0) + 1");
+            commentMapper.update(null, updateWrapper);
 
             // 发送点赞通知
             try {
@@ -225,7 +241,8 @@ public class InteractionServiceImpl implements InteractionService {
                         recipeTitle,
                         comment.getContent());
             } catch (Exception e) {
-                // 通知失败不影响点赞操作
+                log.warn("评论点赞通知发送失败: userId={}, commentId={}, recipeId={}",
+                        userId, commentId, comment.getRecipeId(), e);
             }
 
             return Result.ok("点赞成功");
@@ -254,21 +271,51 @@ public class InteractionServiceImpl implements InteractionService {
                 .eq(UserFavorite::getUserId, userId)
                 .orderByDesc(UserFavorite::getCreateTime));
 
-        List<RecipeDetailDTO> detailList = p.getRecords().stream().map(fav -> {
-            RecipeInfo recipe = recipeInfoMapper.selectById(fav.getRecipeId());
-            if (recipe == null)
+        List<UserFavorite> favorites = p.getRecords();
+        if (favorites.isEmpty()) {
+            Page<RecipeDetailDTO> empty = new Page<>(page, size, p.getTotal());
+            empty.setRecords(new ArrayList<>());
+            return Result.ok(empty);
+        }
+
+        // 批量查询菜谱与作者，避免 N+1 查询
+        List<Long> recipeIds = favorites.stream()
+                .map(UserFavorite::getRecipeId)
+                .collect(Collectors.toList());
+
+        Map<Long, RecipeInfo> recipeMap = new HashMap<>();
+        if (!recipeIds.isEmpty()) {
+            List<RecipeInfo> recipes = recipeInfoMapper.selectList(
+                    new LambdaQueryWrapper<RecipeInfo>().in(RecipeInfo::getId, recipeIds));
+            recipes.forEach(recipe -> recipeMap.put(recipe.getId(), recipe));
+        }
+
+        Set<Long> authorIds = new HashSet<>();
+        recipeMap.values().forEach(recipe -> authorIds.add(recipe.getUserId()));
+
+        Map<Long, SysUser> authorMap = new HashMap<>();
+        if (!authorIds.isEmpty()) {
+            List<SysUser> authors = sysUserMapper.selectList(
+                    new LambdaQueryWrapper<SysUser>().in(SysUser::getId, authorIds));
+            authors.forEach(author -> authorMap.put(author.getId(), author));
+        }
+
+        List<RecipeDetailDTO> detailList = favorites.stream().map(fav -> {
+            RecipeInfo recipe = recipeMap.get(fav.getRecipeId());
+            if (recipe == null) {
                 return null;
+            }
 
             RecipeDetailDTO dto = new RecipeDetailDTO();
             BeanUtil.copyProperties(recipe, dto);
-            SysUser author = sysUserMapper.selectById(recipe.getUserId());
+            SysUser author = authorMap.get(recipe.getUserId());
             if (author != null) {
                 dto.setAuthorName(author.getNickname());
                 dto.setAuthorAvatar(author.getAvatar());
             }
             dto.setIsFavorite(true);
             return dto;
-        }).filter(item -> item != null).collect(Collectors.toList());
+        }).filter(Objects::nonNull).collect(Collectors.toList());
 
         Page<RecipeDetailDTO> result = new Page<>(page, size, p.getTotal());
         result.setRecords(detailList);
@@ -277,6 +324,7 @@ public class InteractionServiceImpl implements InteractionService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Result<?> deleteComment(Long commentId) {
         Long userId = UserContext.getUserId();
         if (userId == null)
@@ -371,6 +419,7 @@ public class InteractionServiceImpl implements InteractionService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Result<?> deleteMyComments(List<Long> commentIds) {
         Long userId = UserContext.getUserId();
         if (userId == null)

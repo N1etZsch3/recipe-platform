@@ -12,4 +12,12 @@ public interface CategoryService extends IService<RecipeCategory> {
      * @return 分类ID，如果不存在则返回默认分类ID（1）
      */
     Integer getIdByName(String name);
+
+    /**
+     * 根据分类ID获取分类名称（带缓存）
+     *
+     * @param id 分类ID
+     * @return 分类名称，如果不存在则返回默认分类名称
+     */
+    String getNameById(Integer id);
 }

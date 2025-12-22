@@ -2,10 +2,12 @@ package com.n1etzsch3.recipe.business.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.n1etzsch3.recipe.business.domain.dto.MessageSendDTO;
+import com.n1etzsch3.recipe.business.domain.vo.ConversationVO;
 import com.n1etzsch3.recipe.business.domain.vo.MessageVO;
 import com.n1etzsch3.recipe.business.domain.vo.UserVO;
 import com.n1etzsch3.recipe.business.entity.ChatMessage;
@@ -22,7 +24,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -69,23 +77,8 @@ public class SocialServiceImpl implements SocialService {
     @Override
     public Result<IPage<UserVO>> pageMyFollows(Integer page, Integer size) {
         Long userId = UserContext.getUserId();
-        Page<UserFollow> p = new Page<>(page, size);
-        followMapper.selectPage(p, new LambdaQueryWrapper<UserFollow>()
-                .eq(UserFollow::getFollowerId, userId)
-                .orderByDesc(UserFollow::getCreateTime));
-
-        // 查我关注的人的信息 (FollowedId)
-        List<UserVO> userList = p.getRecords().stream().map(f -> {
-            SysUser user = sysUserMapper.selectById(f.getFollowedId());
-            if (user == null)
-                return null;
-            UserVO vo = new UserVO();
-            BeanUtil.copyProperties(user, vo);
-            return vo;
-        }).filter(item -> item != null).collect(Collectors.toList());
-
-        Page<UserVO> result = new Page<>(page, size, p.getTotal());
-        result.setRecords(userList);
+        Page<UserVO> p = new Page<>(page, size);
+        IPage<UserVO> result = followMapper.selectFollowedUsers(p, userId);
         return Result.ok(result);
     }
 
@@ -164,13 +157,36 @@ public class SocialServiceImpl implements SocialService {
                 .or(w -> w.eq(ChatMessage::getSenderId, targetUserId).eq(ChatMessage::getReceiverId, userId))
                 .orderByDesc(ChatMessage::getCreateTime)); // Latest first
 
-        List<MessageVO> vos = p.getRecords().stream().map(msg -> {
+        List<ChatMessage> messages = p.getRecords();
+        if (messages.isEmpty()) {
+            Page<MessageVO> empty = new Page<>(page, size, p.getTotal());
+            empty.setRecords(new ArrayList<>());
+            return Result.ok(empty);
+        }
+
+        Set<Long> senderIds = new HashSet<>();
+        for (ChatMessage msg : messages) {
+            if (msg.getSenderId() != null) {
+                senderIds.add(msg.getSenderId());
+            }
+        }
+
+        Map<Long, SysUser> senderMap = new HashMap<>();
+        if (!senderIds.isEmpty()) {
+            List<SysUser> senders = sysUserMapper.selectList(
+                    new LambdaQueryWrapper<SysUser>().in(SysUser::getId, senderIds));
+            for (SysUser sender : senders) {
+                senderMap.put(sender.getId(), sender);
+            }
+        }
+
+        List<MessageVO> vos = messages.stream().map(msg -> {
             MessageVO vo = new MessageVO();
             BeanUtil.copyProperties(msg, vo);
 
             // Fill user info if needed, but VO usually just has sender/receiver generic
             // info
-            SysUser sender = sysUserMapper.selectById(msg.getSenderId());
+            SysUser sender = senderMap.get(msg.getSenderId());
             if (sender != null) {
                 vo.setSenderName(sender.getNickname());
                 vo.setSenderAvatar(sender.getAvatar());
@@ -185,46 +201,62 @@ public class SocialServiceImpl implements SocialService {
     }
 
     @Override
-    public Result<List<com.n1etzsch3.recipe.business.domain.vo.ConversationVO>> listConversations() {
+    public Result<List<ConversationVO>> listConversations() {
         Long userId = UserContext.getUserId();
 
-        // 1. 获取所有与当前用户相关的消息，按用户分组
-        List<ChatMessage> allMessages = chatMessageMapper.selectList(
-                new LambdaQueryWrapper<ChatMessage>()
-                        .eq(ChatMessage::getSenderId, userId)
-                        .or()
-                        .eq(ChatMessage::getReceiverId, userId)
-                        .orderByDesc(ChatMessage::getCreateTime));
+        // 1. 获取每个会话的最新消息（避免全量加载）
+        List<ChatMessage> latestMessageList = chatMessageMapper.selectLatestConversations(userId);
 
-        // 2. 按对方用户分组，获取最新消息
-        java.util.Map<Long, ChatMessage> latestMessages = new java.util.LinkedHashMap<>();
-        java.util.Map<Long, Integer> unreadCounts = new java.util.HashMap<>();
-
-        for (ChatMessage msg : allMessages) {
+        Map<Long, ChatMessage> latestMessages = new LinkedHashMap<>();
+        Set<Long> otherUserIds = new HashSet<>();
+        for (ChatMessage msg : latestMessageList) {
             Long otherUserId = msg.getSenderId().equals(userId) ? msg.getReceiverId() : msg.getSenderId();
+            latestMessages.put(otherUserId, msg);
+            otherUserIds.add(otherUserId);
+        }
 
-            if (!latestMessages.containsKey(otherUserId)) {
-                latestMessages.put(otherUserId, msg);
-            }
-
-            if (msg.getReceiverId().equals(userId) && msg.getIsRead() == 0) {
-                unreadCounts.merge(otherUserId, 1, Integer::sum);
+        // 2. 统计未读数（按对方用户分组）
+        Map<Long, Integer> unreadCounts = new HashMap<>();
+        QueryWrapper<ChatMessage> unreadWrapper = new QueryWrapper<>();
+        unreadWrapper.select("sender_id as other_id", "COUNT(*) as cnt")
+                .eq("receiver_id", userId)
+                .eq("is_read", 0)
+                .groupBy("sender_id");
+        List<Map<String, Object>> unreadList = chatMessageMapper.selectMaps(unreadWrapper);
+        if (unreadList != null) {
+            for (Map<String, Object> row : unreadList) {
+                Object otherIdRaw = row.get("other_id");
+                Object countRaw = row.get("cnt");
+                if (otherIdRaw instanceof Number) {
+                    Long otherId = ((Number) otherIdRaw).longValue();
+                    int count = countRaw instanceof Number ? ((Number) countRaw).intValue() : 0;
+                    unreadCounts.put(otherId, count);
+                }
             }
         }
 
         // 3. 构建结果集 Map (UserId -> VO)，方便去重合并
-        java.util.Map<Long, com.n1etzsch3.recipe.business.domain.vo.ConversationVO> resultMap = new java.util.LinkedHashMap<>();
+        Map<Long, ConversationVO> resultMap = new LinkedHashMap<>();
 
-        // 先添加已有会话
-        for (java.util.Map.Entry<Long, ChatMessage> entry : latestMessages.entrySet()) {
+        Map<Long, SysUser> userMap = new HashMap<>();
+        if (!otherUserIds.isEmpty()) {
+            List<SysUser> users = sysUserMapper.selectList(
+                    new LambdaQueryWrapper<SysUser>().in(SysUser::getId, otherUserIds));
+            for (SysUser user : users) {
+                userMap.put(user.getId(), user);
+            }
+        }
+
+        for (Map.Entry<Long, ChatMessage> entry : latestMessages.entrySet()) {
             Long otherUserId = entry.getKey();
             ChatMessage lastMsg = entry.getValue();
 
-            SysUser otherUser = sysUserMapper.selectById(otherUserId);
-            if (otherUser == null)
+            SysUser otherUser = userMap.get(otherUserId);
+            if (otherUser == null) {
                 continue;
+            }
 
-            com.n1etzsch3.recipe.business.domain.vo.ConversationVO vo = new com.n1etzsch3.recipe.business.domain.vo.ConversationVO();
+            ConversationVO vo = new ConversationVO();
             vo.setUserId(otherUserId);
             vo.setNickname(otherUser.getNickname());
             vo.setAvatar(otherUser.getAvatar());
@@ -240,27 +272,42 @@ public class SocialServiceImpl implements SocialService {
                 .orderByDesc(UserFollow::getCreateTime));
 
         // 5. 将我关注的人合并到列表 (如果还未在会话中)
+        Set<Long> followIdsToLoad = new HashSet<>();
+        for (UserFollow follow : myFollows) {
+            Long followedUserId = follow.getFollowedId();
+            if (!resultMap.containsKey(followedUserId) && !userMap.containsKey(followedUserId)) {
+                followIdsToLoad.add(followedUserId);
+            }
+        }
+        if (!followIdsToLoad.isEmpty()) {
+            List<SysUser> followUsers = sysUserMapper.selectList(
+                    new LambdaQueryWrapper<SysUser>().in(SysUser::getId, followIdsToLoad));
+            for (SysUser user : followUsers) {
+                userMap.put(user.getId(), user);
+            }
+        }
+
         for (UserFollow follow : myFollows) {
             Long followedUserId = follow.getFollowedId();
             if (!resultMap.containsKey(followedUserId)) {
-                SysUser followedUser = sysUserMapper.selectById(followedUserId);
-                if (followedUser == null)
+                SysUser followedUser = userMap.get(followedUserId);
+                if (followedUser == null) {
                     continue;
+                }
 
-                com.n1etzsch3.recipe.business.domain.vo.ConversationVO vo = new com.n1etzsch3.recipe.business.domain.vo.ConversationVO();
+                ConversationVO vo = new ConversationVO();
                 vo.setUserId(followedUserId);
                 vo.setNickname(followedUser.getNickname());
                 vo.setAvatar(followedUser.getAvatar());
                 vo.setLastMessage("开始聊天吧");
-                vo.setLastTime(follow.getCreateTime()); // 使用关注时间作为排序时间
+                vo.setLastTime(follow.getCreateTime());
                 vo.setUnreadCount(0);
                 resultMap.put(followedUserId, vo);
             }
         }
 
         // 6. 转换为 List 并按时间倒序排序
-        List<com.n1etzsch3.recipe.business.domain.vo.ConversationVO> resultList = new java.util.ArrayList<>(
-                resultMap.values());
+        List<ConversationVO> resultList = new ArrayList<>(resultMap.values());
         resultList.sort((a, b) -> b.getLastTime().compareTo(a.getLastTime()));
 
         return Result.ok(resultList);

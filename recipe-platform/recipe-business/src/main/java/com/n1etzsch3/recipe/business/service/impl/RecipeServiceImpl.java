@@ -4,21 +4,23 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.n1etzsch3.recipe.business.domain.dto.RecipeDetailDTO;
 import com.n1etzsch3.recipe.business.domain.dto.RecipePublishDTO;
 import com.n1etzsch3.recipe.business.domain.query.RecipePageQuery;
-import com.n1etzsch3.recipe.business.entity.RecipeInfo;
-import com.n1etzsch3.recipe.business.entity.RecipeIngredient;
-import com.n1etzsch3.recipe.business.entity.RecipeStep;
+import com.n1etzsch3.recipe.business.entity.*;
 import com.n1etzsch3.recipe.business.mapper.RecipeInfoMapper;
 import com.n1etzsch3.recipe.business.mapper.RecipeIngredientMapper;
 import com.n1etzsch3.recipe.business.mapper.RecipeStepMapper;
+import com.n1etzsch3.recipe.business.service.CategoryService;
 import com.n1etzsch3.recipe.business.service.NotificationService;
 import com.n1etzsch3.recipe.business.service.RecipeService;
+import com.n1etzsch3.recipe.common.constant.UserConstants;
 import com.n1etzsch3.recipe.common.context.UserContext;
+import com.n1etzsch3.recipe.common.core.domain.LoginUser;
 import com.n1etzsch3.recipe.common.core.domain.Result;
 import com.n1etzsch3.recipe.system.entity.SysUser;
 import com.n1etzsch3.recipe.system.mapper.SysUserMapper;
@@ -45,6 +47,7 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
     private final com.n1etzsch3.recipe.business.mapper.RecipeCommentMapper commentMapper;
     private final com.n1etzsch3.recipe.business.mapper.UserFavoriteMapper favoriteMapper;
     private final com.n1etzsch3.recipe.business.mapper.UserFollowMapper followMapper;
+    private final CategoryService categoryService;
     private final NotificationService notificationService;
 
     @Override
@@ -89,11 +92,12 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
                 BeanUtil.copyProperties(item, entity);
                 entity.setRecipeId(recipeId);
                 return entity;
-            }).collect(Collectors.toList());
+            }).toList();
             steps.forEach(stepMapper::insert);
         }
 
         // 4. 通知所有管理员有新菜谱待审核
+        // FIXME：这里会不会有竞态条件（例如多个管理员同时审批同一个菜谱），或者管理员过多时的性能问题？
         SysUser author = sysUserMapper.selectById(userId);
         String authorName = author != null ? author.getNickname() : "用户" + userId;
         notificationService.sendNewRecipePending(recipeId, publishDTO.getTitle(), userId, authorName);
@@ -110,6 +114,14 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
             return Result.fail("菜谱不存在");
         }
 
+        LoginUser loginUser = UserContext.get();
+        Long currentUserId = loginUser != null ? loginUser.getId() : null;
+        boolean isAdmin = loginUser != null && UserConstants.ROLE_ADMIN.equals(loginUser.getRole());
+        boolean isOwner = currentUserId != null && currentUserId.equals(recipe.getUserId());
+        if (!Integer.valueOf(RecipeConstants.STATUS_PUBLISHED).equals(recipe.getStatus()) && !isOwner && !isAdmin) {
+            return Result.fail("菜谱不存在");
+        }
+
         // 2. 组装 DTO
         RecipeDetailDTO detailDTO = new RecipeDetailDTO();
         BeanUtil.copyProperties(recipe, detailDTO);
@@ -122,35 +134,41 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
         }
 
         // 4. 获取食材
+        // 如果未维护食材表，这里可能为空列表
         List<RecipeIngredient> ingredients = ingredientMapper.selectList(new LambdaQueryWrapper<RecipeIngredient>()
                 .eq(RecipeIngredient::getRecipeId, id)
                 .orderByAsc(RecipeIngredient::getSortOrder));
         detailDTO.setIngredients(ingredients);
 
         // 5. 获取步骤
+        // 如果未维护步骤表，这里可能为空列表
         List<RecipeStep> steps = stepMapper.selectList(new LambdaQueryWrapper<RecipeStep>()
                 .eq(RecipeStep::getRecipeId, id)
                 .orderByAsc(RecipeStep::getStepNo));
         detailDTO.setSteps(steps);
 
-        // 6. TODO: 增加浏览量 (异步优化)
-        recipe.setViewCount(recipe.getViewCount() + 1);
-        this.updateById(recipe);
+        // 6. 增加浏览量（原子更新，避免并发丢失）
+        int currentViewCount = recipe.getViewCount() != null ? recipe.getViewCount() : 0;
+        int nextViewCount = currentViewCount + 1;
+        LambdaUpdateWrapper<RecipeInfo> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(RecipeInfo::getId, id)
+                .setSql("view_count = COALESCE(view_count, 0) + 1");
+        this.baseMapper.update(null, updateWrapper);
+        detailDTO.setViewCount(nextViewCount);
 
         // 7. 检查当前用户是否收藏
-        Long currentUserId = com.n1etzsch3.recipe.common.context.UserContext.getUserId();
         if (currentUserId != null) {
             Long isFav = favoriteMapper.selectCount(
-                    new LambdaQueryWrapper<com.n1etzsch3.recipe.business.entity.UserFavorite>()
-                            .eq(com.n1etzsch3.recipe.business.entity.UserFavorite::getRecipeId, id)
-                            .eq(com.n1etzsch3.recipe.business.entity.UserFavorite::getUserId, currentUserId));
+                    new LambdaQueryWrapper<UserFavorite>()
+                            .eq(UserFavorite::getRecipeId, id)
+                            .eq(UserFavorite::getUserId, currentUserId));
             detailDTO.setIsFavorite(isFav != null && isFav > 0);
 
             // 检查是否关注作者
             Long isFollow = followMapper.selectCount(
-                    new LambdaQueryWrapper<com.n1etzsch3.recipe.business.entity.UserFollow>()
-                            .eq(com.n1etzsch3.recipe.business.entity.UserFollow::getFollowerId, currentUserId)
-                            .eq(com.n1etzsch3.recipe.business.entity.UserFollow::getFollowedId, recipe.getUserId()));
+                    new LambdaQueryWrapper<UserFollow>()
+                            .eq(UserFollow::getFollowerId, currentUserId)
+                            .eq(UserFollow::getFollowedId, recipe.getUserId()));
             detailDTO.setIsFollow(isFollow != null && isFollow > 0);
         } else {
             detailDTO.setIsFavorite(false);
@@ -168,30 +186,30 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
 
         LambdaQueryWrapper<RecipeInfo> wrapper = new LambdaQueryWrapper<>();
 
-        // 1. Status Filter
+        // 1. 状态筛选
         if (query.getStatus() != null) {
             wrapper.eq(RecipeInfo::getStatus, query.getStatus());
         } else if (query.getAuthorId() == null) {
-            // Default: Only show published if not filtering by specific author/status
+            // 默认：未指定作者/状态时只显示已发布
             wrapper.eq(RecipeInfo::getStatus, RecipeConstants.STATUS_PUBLISHED);
         }
 
-        // 2. Author Filter
+        // 2. 作者筛选
         if (query.getAuthorId() != null) {
             wrapper.eq(RecipeInfo::getUserId, query.getAuthorId());
         }
 
-        // 3. Category Filter
+        // 3. 分类筛选
         if (query.getCategoryId() != null) {
             wrapper.eq(RecipeInfo::getCategoryId, query.getCategoryId());
         }
 
-        // 4. Keyword Filter
+        // 4. 关键词筛选
         if (StrUtil.isNotBlank(query.getKeyword())) {
             wrapper.like(RecipeInfo::getTitle, query.getKeyword());
         }
 
-        // 5. Sort
+        // 5. 排序
         if (StringUtils.hasText(query.getSort()) && RecipeConstants.SORT_HOT.equals(query.getSort())) {
             wrapper.orderByDesc(RecipeInfo::getViewCount);
         } else {
@@ -256,28 +274,28 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
             userFavorites.forEach(f -> userFavoriteRecipeIds.add(f.getRecipeId()));
         }
 
-        // 转换为 DTO Page (使用批量查询的数据)
+        // 转换为 DTO Page（使用批量查询的数据）
         IPage<RecipeDetailDTO> dtoPage = resultPage.convert(recipe -> {
             RecipeDetailDTO dto = new RecipeDetailDTO();
             BeanUtil.copyProperties(recipe, dto);
 
-            // 作者信息 (从 Map 获取)
+            // 作者信息（从映射获取）
             SysUser author = authorMap.get(recipe.getUserId());
             if (author != null) {
                 dto.setAuthorName(author.getNickname());
                 dto.setAuthorAvatar(author.getAvatar());
             }
 
-            // 评论数 (从 Map 获取)
+            // 评论数（从映射获取）
             dto.setCommentCount(commentCountMap.getOrDefault(recipe.getId(), 0L).intValue());
 
-            // 收藏数 (从 Map 获取)
+            // 收藏数（从映射获取）
             dto.setFavoriteCount(favoriteCountMap.getOrDefault(recipe.getId(), 0L).intValue());
 
             // 分类名称映射
             dto.setCategoryName(mapCategoryIdToName(recipe.getCategoryId()));
 
-            // 是否收藏 (从 Set 获取)
+            // 是否收藏（从集合获取）
             dto.setIsFavorite(userFavoriteRecipeIds.contains(recipe.getId()));
 
             return dto;
@@ -288,20 +306,7 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
 
     // 分类ID映射到名称
     private String mapCategoryIdToName(Integer categoryId) {
-        if (categoryId == null)
-            return "美食";
-        return switch (categoryId) {
-            case 1 -> "家常菜";
-            case 2 -> "下饭菜";
-            case 3 -> "烘焙";
-            case 4 -> "肉类";
-            case 5 -> "汤羹";
-            case 6 -> "主食";
-            case 7 -> "小吃";
-            case 9 -> "甜品";
-            case 8 -> "其他";
-            default -> "美食";
-        };
+        return categoryService.getNameById(categoryId);
     }
 
     @Override
@@ -351,6 +356,7 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Result<?> deleteRecipe(Long id) {
         Long userId = UserContext.getUserId();
         log.info("用户 {} 删除菜谱: {}", userId, id);
