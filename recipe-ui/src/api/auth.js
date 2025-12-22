@@ -39,3 +39,12 @@ export function getCaptcha() {
         method: 'get'
     })
 }
+
+// 强制登录（踢掉已在线的旧会话）
+export function forceLogin(data) {
+    return request({
+        url: '/api/v1/users/force-login',
+        method: 'post',
+        data
+    })
+}

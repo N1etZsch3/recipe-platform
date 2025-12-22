@@ -36,6 +36,31 @@ export const useNotificationStore = defineStore('notification', () => {
             return
         }
 
+        // 处理强制下线消息
+        if (message.type === 'FORCED_LOGOUT') {
+            console.warn('WebSocket: 收到强制下线消息', message)
+            handleForcedLogout(message.content || '您已被强制下线')
+            return
+        }
+
+        // ========== 管理员实时推送处理 ==========
+        // 用户上线/离线状态变化 - 分发自定义事件供管理页面监听
+        if (message.type === 'USER_ONLINE' || message.type === 'USER_OFFLINE') {
+            window.dispatchEvent(new CustomEvent('admin-user-status', { detail: message }))
+            // 不添加到通知列表，仅用于实时更新
+            return
+        }
+
+        // 新菜谱待审核 - 分发事件并显示通知
+        if (message.type === 'NEW_RECIPE_PENDING') {
+            window.dispatchEvent(new CustomEvent('admin-recipe-pending', { detail: message }))
+        }
+
+        // 管理员新评论通知
+        if (message.type === 'ADMIN_NEW_COMMENT') {
+            window.dispatchEvent(new CustomEvent('admin-new-comment', { detail: message }))
+        }
+
         // 创建通知对象
         const notification = {
             id: Date.now() + Math.random(), // 确保唯一性
@@ -64,6 +89,27 @@ export const useNotificationStore = defineStore('notification', () => {
         if (shouldShowToast) {
             showToast(notification)
         }
+    }
+
+    /**
+     * 处理强制下线
+     */
+    function handleForcedLogout(reason) {
+        // 延迟导入避免循环依赖
+        Promise.all([
+            import('@/stores/user'),
+            import('@/composables/useModal')
+        ]).then(([{ useUserStore }, { useModal }]) => {
+            const userStore = useUserStore()
+            const { alert: showAlert } = useModal()
+            // 清除用户状态
+            userStore.logout()
+            // 使用模态框显示提示
+            showAlert(reason, { title: '您已被强制下线' }).finally(() => {
+                // 跳转到登录页
+                window.location.href = '/login'
+            })
+        })
     }
 
     /**

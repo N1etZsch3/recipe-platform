@@ -11,7 +11,8 @@ import {
 } from 'lucide-vue-next'
 import { 
   getConversations, getMessages, sendMessage as apiSendMessage, markRead,
-  getMyComments, deleteMyComments, getRepliesForMe, getLikesForMe, getLikeDetail
+  getMyComments, deleteMyComments, getRepliesForMe, getLikesForMe, getLikeDetail,
+  checkOnlineStatus
 } from '@/api/social'
 
 const router = useRouter()
@@ -40,6 +41,7 @@ const loadingMessages = ref(false)
 const messagesContainer = ref(null)
 const newMessage = ref('')
 const searchKeyword = ref('')
+const onlineStatus = ref({})
 
 // ============= 我的评论相关 =============
 const myComments = ref([])
@@ -107,6 +109,11 @@ const loadConversations = async () => {
       rawTime: c.lastTime,
       unread: c.unreadCount || 0
     }))
+    // 加载所有会话用户的在线状态
+    if (conversations.value.length > 0) {
+      const userIds = conversations.value.map(c => c.userId)
+      await fetchOnlineStatus(userIds)
+    }
   } catch (error) {
     console.error('加载会话失败', error)
   } finally {
@@ -114,10 +121,25 @@ const loadConversations = async () => {
   }
 }
 
+// 获取用户在线状态
+const fetchOnlineStatus = async (userIds) => {
+  if (!userIds || userIds.length === 0) return
+  try {
+    const res = await checkOnlineStatus(userIds)
+    if (res) {
+      onlineStatus.value = { ...onlineStatus.value, ...res }
+    }
+  } catch (error) {
+    console.error('获取在线状态失败', error)
+  }
+}
+
 const selectConversation = async (conv) => {
   selectedConversation.value = conv
   mobileView.value = 'detail'
   notificationStore.setCurrentChatUser(conv.userId)
+  // 获取该用户的在线状态
+  fetchOnlineStatus([conv.userId])
   await loadMessages(conv.userId)
   if (conv.unread > 0) {
     markRead(conv.userId).then(() => conv.unread = 0).catch(e => console.error(e))
@@ -400,6 +422,9 @@ onMounted(async () => {
   }
   await loadConversations()
   
+  // 监听用户在线状态变化事件（实时更新）
+  window.addEventListener('admin-user-status', handleUserStatusChange)
+  
   // 处理从通知跳转过来的情况
   const chatWith = route.query.chatWith
   const chatName = route.query.chatName
@@ -429,7 +454,26 @@ onMounted(async () => {
 
 onUnmounted(() => {
   notificationStore.clearCurrentChatUser()
+  // 清理事件监听器
+  window.removeEventListener('admin-user-status', handleUserStatusChange)
 })
+
+// 处理用户状态变化事件（带防抖避免页面刷新闪烁）
+let statusDebounceTimer = null
+const handleUserStatusChange = (event) => {
+  const { type, relatedId } = event.detail
+  if (!relatedId) return
+  
+  // 清除之前的定时器
+  if (statusDebounceTimer) {
+    clearTimeout(statusDebounceTimer)
+  }
+  
+  // 300ms 防抖，避免页面刷新时先离线再上线的闪烁
+  statusDebounceTimer = setTimeout(() => {
+    onlineStatus.value[relatedId] = type === 'USER_ONLINE'
+  }, 300)
+}
 
 // 获取头像显示
 const getAvatarUrl = (avatar, name) => {
@@ -570,8 +614,15 @@ const getAvatarUrl = (avatar, name) => {
                     >
                     <div class="flex-1">
                       <div class="font-medium text-gray-800 text-sm">{{ selectedConversation.nickname }}</div>
-                      <div class="text-[10px] text-green-500 flex items-center gap-1">
-                        <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>在线
+                      <div :class="[
+                        'text-[10px] flex items-center gap-1',
+                        onlineStatus[selectedConversation.userId] ? 'text-green-500' : 'text-gray-400'
+                      ]">
+                        <div :class="[
+                          'w-1.5 h-1.5 rounded-full',
+                          onlineStatus[selectedConversation.userId] ? 'bg-green-500' : 'bg-gray-300'
+                        ]"></div>
+                        {{ onlineStatus[selectedConversation.userId] ? '在线' : '离线' }}
                       </div>
                     </div>
                   </div>

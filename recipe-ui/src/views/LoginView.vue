@@ -3,12 +3,14 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useToast } from '@/components/Toast.vue'
-import { login, register, getCaptcha } from '@/api/auth'
+import { useModal } from '@/composables/useModal'
+import { login, register, getCaptcha, forceLogin } from '@/api/auth'
 import { User, Lock, Smile, ArrowRight, Loader2, RefreshCw, ShieldCheck } from 'lucide-vue-next'
 
 const router = useRouter()
 const userStore = useUserStore()
 const { showToast } = useToast()
+const { confirm } = useModal()
 
 const isLogin = ref(true)
 const loading = ref(false)
@@ -42,6 +44,32 @@ onMounted(() => {
   fetchCaptcha()
 })
 
+// 处理登录成功
+const handleLoginSuccess = (res) => {
+  userStore.setToken(res.token)
+  userStore.setUser({
+      id: res.userId,
+      username: form.value.username,
+      nickname: res.nickname,
+      avatar: res.avatar,
+      role: res.role 
+  })
+  showToast('登录成功')
+  router.push('/')
+}
+
+// 执行强制登录
+const doForceLogin = async () => {
+  loading.value = true
+  try {
+    // 需要重新获取验证码
+    await fetchCaptcha()
+    showToast('请重新输入验证码后确认登录')
+  } finally {
+    loading.value = false
+  }
+}
+
 const handleSubmit = async () => {
   if (!form.value.username || !form.value.password) {
     showToast('请输入用户名和密码')
@@ -65,16 +93,7 @@ const handleSubmit = async () => {
         captchaId: form.value.captchaId,
         captchaCode: form.value.captchaCode
       })
-      userStore.setToken(res.token)
-      userStore.setUser({
-          id: res.userId,
-          username: form.value.username,
-          nickname: res.nickname,
-          avatar: res.avatar,
-          role: res.role 
-      })
-      showToast('登录成功')
-      router.push('/')
+      handleLoginSuccess(res)
     } else {
       await register({ 
         username: form.value.username, 
@@ -88,11 +107,59 @@ const handleSubmit = async () => {
       fetchCaptcha()
     }
   } catch (error) {
-    showToast(error.message || '操作失败')
-    fetchCaptcha() // 刷新验证码
+    // 检查是否是 409 冲突（账号已在其他设备登录）
+    if (error.response?.data?.code === 409 || error.code === 409) {
+      const confirmResult = await confirm(
+        error.response?.data?.data?.message || error.message || '该账号已在其他设备登录，是否强制登录？',
+        { danger: true, confirmText: '强制登录', cancelText: '取消' }
+      )
+      if (confirmResult) {
+        // 用户确认强制登录
+        try {
+          // 需要刷新验证码
+          await fetchCaptcha()
+          // 等待用户输入新验证码
+          showToast('请输入验证码后点击登录按钮')
+          // 标记为强制登录模式
+          form.value._forceLogin = true
+        } catch (e) {
+          showToast('操作失败')
+        }
+      } else {
+        fetchCaptcha()
+      }
+    } else {
+      showToast(error.message || '操作失败')
+      fetchCaptcha() // 刷新验证码
+    }
   } finally {
     loading.value = false
     form.value.captchaCode = '' // 清空验证码
+  }
+}
+
+// 强制登录提交
+const handleForceLoginSubmit = async () => {
+  if (!form.value.captchaCode) {
+    showToast('请输入验证码')
+    return
+  }
+  loading.value = true
+  try {
+    const res = await forceLogin({ 
+      username: form.value.username, 
+      password: form.value.password,
+      captchaId: form.value.captchaId,
+      captchaCode: form.value.captchaCode
+    })
+    handleLoginSuccess(res)
+  } catch (error) {
+    showToast(error.message || '登录失败')
+    fetchCaptcha()
+  } finally {
+    loading.value = false
+    form.value.captchaCode = ''
+    form.value._forceLogin = false
   }
 }
 
@@ -185,12 +252,15 @@ const handleVisitor = () => {
           </div>
 
           <button 
-            @click="handleSubmit" 
+            @click="form._forceLogin ? handleForceLoginSubmit() : handleSubmit()" 
             :disabled="loading"
-            class="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 transition flex items-center justify-center gap-2 font-bold shadow-md disabled:opacity-70 disabled:cursor-not-allowed"
+            :class="[
+              'w-full py-3 rounded-lg transition flex items-center justify-center gap-2 font-bold shadow-md disabled:opacity-70 disabled:cursor-not-allowed',
+              form._forceLogin ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-orange-500 hover:bg-orange-600 text-white'
+            ]"
           >
             <Loader2 v-if="loading" class="w-5 h-5 animate-spin" />
-            <span v-else>{{ isLogin ? '登录' : '立即注册' }}</span>
+            <span v-else>{{ form._forceLogin ? '确认强制登录' : (isLogin ? '登录' : '立即注册') }}</span>
             <ArrowRight v-if="!loading" class="w-4 h-4" />
           </button>
         </div>

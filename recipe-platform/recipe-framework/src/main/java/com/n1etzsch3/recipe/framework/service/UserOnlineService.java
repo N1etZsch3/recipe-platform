@@ -1,6 +1,7 @@
 package com.n1etzsch3.recipe.framework.service;
 
 import com.n1etzsch3.recipe.common.constant.CacheConstants;
+import com.n1etzsch3.recipe.framework.websocket.WebSocketSessionManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -19,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 public class UserOnlineService {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final WebSocketSessionManager sessionManager;
 
     private static final String KEY_ONLINE_USERS = CacheConstants.KEY_PREFIX + "online:users";
     private static final String KEY_USER_SESSION = CacheConstants.KEY_PREFIX + "session:";
@@ -90,10 +92,14 @@ public class UserOnlineService {
 
     /**
      * 踢用户下线
+     * 
+     * @param userId 要踢下线的用户ID
      */
     public void kickUser(Long userId) {
         log.info("管理员踢用户下线: userId={}", userId);
+        // 1. 先关闭 WebSocket 连接（会发送 FORCED_LOGOUT 消息）
+        sessionManager.closeAllSessions(userId, "您已被管理员强制下线");
+        // 2. 清除 Redis 在线状态
         offline(userId);
-        // 可以配合 WebSocket 发送强制下线消息
     }
 }

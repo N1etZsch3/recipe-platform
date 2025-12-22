@@ -179,3 +179,12 @@ export function getSystemNotifications(params) {
         params
     })
 }
+
+// 查询用户在线状态
+export function checkOnlineStatus(userIds) {
+    return request({
+        url: '/api/v1/social/online',
+        method: 'get',
+        params: { userIds: userIds.join(',') }
+    })
+}

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { listUsers, updateUserStatus, batchUpdateUserStatus, getUsersOnlineStatus, kickUser as kickUserApi } from '@/api/admin'
 import { useToast } from '@/components/Toast.vue'
 import { useModal } from '@/composables/useModal'
@@ -112,6 +112,11 @@ const toggleUserStatus = async (user) => {
     if (!confirmed) return
 
     try {
+        // 封禁用户时，如果用户在线，先踢下线
+        if (newStatus === 0 && onlineStatus.value[user.id]) {
+            await kickUserApi(user.id)
+            onlineStatus.value[user.id] = false
+        }
         await updateUserStatus(user.id, { status: newStatus })
         user.status = newStatus
         showToast(`${action}成功`)
@@ -211,7 +216,31 @@ const visiblePages = computed(() => {
 
 onMounted(() => {
     fetchUsers().then(() => fetchOnlineStatus())
+    // 监听用户在线状态变化事件
+    window.addEventListener('admin-user-status', handleUserStatusChange)
 })
+
+onUnmounted(() => {
+    // 清理事件监听器
+    window.removeEventListener('admin-user-status', handleUserStatusChange)
+})
+
+// 处理用户状态变化事件（带防抖避免页面刷新闪烁）
+let statusDebounceTimer = null
+const handleUserStatusChange = (event) => {
+    const { type, relatedId } = event.detail
+    if (!relatedId) return
+    
+    // 清除之前的定时器
+    if (statusDebounceTimer) {
+        clearTimeout(statusDebounceTimer)
+    }
+    
+    // 300ms 防抖，避免页面刷新时先离线再上线的闪烁
+    statusDebounceTimer = setTimeout(() => {
+        onlineStatus.value[relatedId] = type === 'USER_ONLINE'
+    }, 300)
+}
 
 const formatDate = (dateStr) => {
     if (!dateStr) return '-'
@@ -460,10 +489,15 @@ const getAvatar = (user) => {
                                         <component :is="user.status === 1 ? Ban : CheckCircle" class="w-4 h-4" />
                                     </button>
                                     <button 
-                                        v-if="onlineStatus[user.id]"
                                         @click="handleKickUser(user)"
-                                        class="p-1.5 text-orange-500 bg-orange-50 hover:bg-orange-100 rounded-lg transition"
-                                        title="强制踢下线"
+                                        :disabled="!onlineStatus[user.id]"
+                                        :class="[
+                                            'p-1.5 rounded-lg transition',
+                                            onlineStatus[user.id] 
+                                                ? 'text-orange-500 bg-orange-50 hover:bg-orange-100 cursor-pointer' 
+                                                : 'text-gray-300 bg-gray-50 cursor-not-allowed'
+                                        ]"
+                                        :title="onlineStatus[user.id] ? '强制踢下线' : '用户已离线'"
                                     >
                                         <LogOut class="w-4 h-4" />
                                     </button>

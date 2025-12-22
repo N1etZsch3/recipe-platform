@@ -34,4 +34,9 @@ public interface AuthService {
      * 修改密码
      */
     Result<?> updatePassword(Long userId, PasswordUpdateDTO passwordDTO);
+
+    /**
+     * 强制登录（踢掉已在线的旧会话）
+     */
+    Result<Map<String, Object>> forceLogin(LoginDTO loginDTO);
 }

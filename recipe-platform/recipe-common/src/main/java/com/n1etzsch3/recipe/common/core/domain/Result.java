@@ -58,6 +58,17 @@ public class Result<T> implements Serializable {
         return restResult(null, code, msg);
     }
 
+    /**
+     * 返回自定义状态码和数据
+     */
+    public static <T> Result<T> result(T data, int code, String msg) {
+        Result<T> apiResult = new Result<>();
+        apiResult.setCode(code);
+        apiResult.setData(data);
+        apiResult.setMsg(msg);
+        return apiResult;
+    }
+
     private static <T> Result<T> restResult(T data, int code, String msg) {
         Result<T> apiResult = new Result<>();
         apiResult.setCode(code);

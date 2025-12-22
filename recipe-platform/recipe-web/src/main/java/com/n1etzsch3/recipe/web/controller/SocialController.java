@@ -5,10 +5,14 @@ import com.n1etzsch3.recipe.business.domain.vo.UserVO;
 import com.n1etzsch3.recipe.business.domain.dto.MessageSendDTO;
 import com.n1etzsch3.recipe.business.service.SocialService;
 import com.n1etzsch3.recipe.common.core.domain.Result;
+import com.n1etzsch3.recipe.framework.service.UserOnlineService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -17,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class SocialController {
 
     private final SocialService socialService;
+    private final UserOnlineService userOnlineService;
 
     /**
      * 关注/取关
@@ -85,5 +90,15 @@ public class SocialController {
     @PutMapping("/messages/read/{senderId}")
     public Result<?> markRead(@PathVariable Long senderId) {
         return socialService.markRead(senderId);
+    }
+
+    /**
+     * 查询用户在线状态
+     * 供普通用户查询聊天对象的在线状态
+     */
+    @GetMapping("/online")
+    public Result<Map<Long, Boolean>> checkOnlineStatus(@RequestParam List<Long> userIds) {
+        Map<Long, Boolean> result = userOnlineService.batchCheckOnline(userIds);
+        return Result.ok(result);
     }
 }

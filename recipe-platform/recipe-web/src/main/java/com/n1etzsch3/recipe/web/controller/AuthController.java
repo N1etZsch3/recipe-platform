@@ -49,6 +49,16 @@ public class AuthController {
     }
 
     /**
+     * 强制登录（用户确认后踢掉已在线的旧会话）
+     */
+    @RateLimit(time = 60, count = 5, limitType = RateLimit.LimitType.IP)
+    @PostMapping("/force-login")
+    public Result<Map<String, Object>> forceLogin(@RequestBody @Valid LoginDTO loginDTO) {
+        log.info("用户强制登录请求: username={}", loginDTO.getUsername());
+        return authService.forceLogin(loginDTO);
+    }
+
+    /**
      * 获取当前用户信息
      */
     @GetMapping("/me")

@@ -13,6 +13,7 @@ import com.n1etzsch3.recipe.system.entity.SysUser;
 import com.n1etzsch3.recipe.system.mapper.SysUserMapper;
 import com.n1etzsch3.recipe.system.service.AuthService;
 import com.n1etzsch3.recipe.system.service.CaptchaService;
+import com.n1etzsch3.recipe.framework.service.UserOnlineService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class AuthServiceImpl implements AuthService {
     private final SysUserMapper sysUserMapper;
     private final PasswordEncoder passwordEncoder;
     private final CaptchaService captchaService;
+    private final UserOnlineService userOnlineService;
 
     @Override
     public Result<Map<String, Object>> login(LoginDTO loginDTO) {
@@ -59,7 +61,17 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail("账号已被封禁");
         }
 
-        // 6. 生成 Token
+        // 6. 检查用户是否已在线
+        if (userOnlineService.isOnline(user.getId())) {
+            // 返回特殊状态码，提示前端需要确认
+            Map<String, Object> data = new HashMap<>();
+            data.put("requireConfirm", true);
+            data.put("userId", user.getId());
+            data.put("message", "该账号已在其他设备登录，是否强制登录？");
+            return Result.result(data, 409, "账号已在其他设备登录");
+        }
+
+        // 7. 生成 Token
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
         claims.put("username", user.getUsername());
@@ -67,7 +79,61 @@ public class AuthServiceImpl implements AuthService {
 
         String token = JwtUtils.generateToken(claims);
 
-        // 7. 构造返回数据
+        // 8. 构造返回数据
+        Map<String, Object> data = new HashMap<>();
+        data.put("token", token);
+        data.put("userId", user.getId());
+        data.put("nickname", user.getNickname());
+        data.put("role", user.getRole());
+        data.put("avatar", user.getAvatar());
+
+        return Result.ok(data, "登录成功");
+    }
+
+    @Override
+    public Result<Map<String, Object>> forceLogin(LoginDTO loginDTO) {
+        // 1. 验证验证码
+        if (!captchaService.validateCaptcha(loginDTO.getCaptchaId(), loginDTO.getCaptchaCode())) {
+            return Result.fail("验证码错误或已过期");
+        }
+
+        // 2. 查询用户
+        SysUser user = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUsername, loginDTO.getUsername()));
+
+        if (user == null) {
+            return Result.fail("用户不存在");
+        }
+
+        // 3. 禁止管理员通过普通接口登录
+        if (UserConstants.ROLE_ADMIN.equals(user.getRole())) {
+            return Result.fail("管理员请使用专用入口登录");
+        }
+
+        // 4. 校验密码
+        if (!passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
+            return Result.fail("密码错误");
+        }
+
+        // 5. 校验状态
+        if (user.getStatus() != null && user.getStatus() == UserConstants.DISABLE) {
+            return Result.fail("账号已被封禁");
+        }
+
+        // 6. 强制踢掉旧会话
+        if (userOnlineService.isOnline(user.getId())) {
+            userOnlineService.kickUser(user.getId());
+        }
+
+        // 7. 生成 Token
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId());
+        claims.put("username", user.getUsername());
+        claims.put("role", user.getRole());
+
+        String token = JwtUtils.generateToken(claims);
+
+        // 8. 构造返回数据
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("userId", user.getId());

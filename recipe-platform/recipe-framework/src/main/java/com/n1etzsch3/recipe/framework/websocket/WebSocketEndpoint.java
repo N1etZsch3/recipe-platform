@@ -28,10 +28,22 @@ public class WebSocketEndpoint {
      * 由于 @ServerEndpoint 不是 Spring 管理的 Bean，需要静态注入
      */
     private static WebSocketSessionManager sessionManager;
+    private static com.n1etzsch3.recipe.framework.service.UserOnlineService userOnlineService;
+    private static com.n1etzsch3.recipe.common.websocket.WebSocketUserStatusCallback userStatusCallback;
 
     @Autowired
     public void setSessionManager(WebSocketSessionManager manager) {
         WebSocketEndpoint.sessionManager = manager;
+    }
+
+    @Autowired
+    public void setUserOnlineService(com.n1etzsch3.recipe.framework.service.UserOnlineService service) {
+        WebSocketEndpoint.userOnlineService = service;
+    }
+
+    @Autowired(required = false)
+    public void setUserStatusCallback(com.n1etzsch3.recipe.common.websocket.WebSocketUserStatusCallback callback) {
+        WebSocketEndpoint.userStatusCallback = callback;
     }
 
     /**
@@ -73,6 +85,15 @@ public class WebSocketEndpoint {
 
             // 注册用户会话
             sessionManager.register(userId, session);
+            // 更新 Redis 在线状态
+            if (userOnlineService != null) {
+                userOnlineService.heartbeat(userId);
+            }
+            // 广播用户上线状态给管理员（通过回调）
+            if (userStatusCallback != null) {
+                // 昵称可选，通过回调实现类获取
+                userStatusCallback.onUserOnline(userId, null);
+            }
 
             // 发送连接成功消息
             WebSocketMessage welcomeMsg = WebSocketMessage.builder()
@@ -116,7 +137,22 @@ public class WebSocketEndpoint {
     @OnClose
     public void onClose(Session session) {
         if (userId != null) {
-            sessionManager.remove(userId, session);
+            try {
+                sessionManager.remove(userId, session);
+                // 检查是否还有其他会话，如果没有则标记离线
+                if (!sessionManager.isOnline(userId)) {
+                    if (userOnlineService != null) {
+                        userOnlineService.offline(userId);
+                    }
+                    // 广播用户离线状态给管理员（通过回调）
+                    if (userStatusCallback != null) {
+                        userStatusCallback.onUserOffline(userId);
+                    }
+                }
+            } catch (Exception e) {
+                // 应用关闭时 Redis 可能已销毁，忽略此异常
+                log.debug("WebSocket 关闭时清理失败（可能是应用正在关闭）: userId={}", userId);
+            }
         }
     }
 
@@ -125,9 +161,25 @@ public class WebSocketEndpoint {
      */
     @OnError
     public void onError(Session session, Throwable error) {
-        log.error("WebSocket 错误: userId={}", userId, error);
+        // 应用关闭时的 ClosedChannelException 是正常的，降级为 debug 级别
+        if (error instanceof java.io.IOException
+                || error.getCause() instanceof java.nio.channels.ClosedChannelException) {
+            log.debug("WebSocket 连接关闭: userId={}", userId);
+        } else {
+            log.error("WebSocket 错误: userId={}", userId, error);
+        }
+
         if (userId != null) {
-            sessionManager.remove(userId, session);
+            try {
+                sessionManager.remove(userId, session);
+                // 检查是否还有其他会话，如果没有则标记离线
+                if (!sessionManager.isOnline(userId) && userOnlineService != null) {
+                    userOnlineService.offline(userId);
+                }
+            } catch (Exception e) {
+                // 应用关闭时 Redis 可能已销毁，忽略此异常
+                log.debug("WebSocket 错误处理时清理失败（可能是应用正在关闭）: userId={}", userId);
+            }
         }
     }
 

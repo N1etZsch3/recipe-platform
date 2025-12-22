@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 通知推送服务实现
@@ -202,5 +203,95 @@ public class NotificationServiceImpl implements NotificationService {
                 .senderName(likerName)
                 .build();
         sendToUser(commentOwnerId, message);
+    }
+
+    // ========== 管理员广播实现 ==========
+
+    @Override
+    public void broadcastUserOnline(Long userId, String nickname) {
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.USER_ONLINE)
+                .title("用户上线")
+                .content(nickname != null ? nickname + " 已上线" : "用户已上线")
+                .relatedId(userId)
+                .timestamp(LocalDateTime.now())
+                .build();
+        broadcastToAllOnlineUsers(message);
+        log.debug("广播用户上线: userId={}", userId);
+    }
+
+    @Override
+    public void broadcastUserOffline(Long userId) {
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.USER_OFFLINE)
+                .title("用户离线")
+                .content("用户已离线")
+                .relatedId(userId)
+                .timestamp(LocalDateTime.now())
+                .build();
+        broadcastToAllOnlineUsers(message);
+        log.debug("广播用户离线: userId={}", userId);
+    }
+
+    @Override
+    public void broadcastToAdmins(WebSocketMessage message) {
+        // 查询所有管理员（包括超级管理员和普通管理员）
+        List<SysUser> admins = sysUserMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                .in(SysUser::getRole, "admin", "common_admin")
+                .eq(SysUser::getStatus, 0)); // 0=正常
+
+        if (admins.isEmpty()) {
+            return;
+        }
+
+        // 设置时间戳
+        if (message.getTimestamp() == null) {
+            message.setTimestamp(LocalDateTime.now());
+        }
+
+        String json = JSONUtil.toJsonStr(message);
+        int sentCount = 0;
+
+        for (SysUser admin : admins) {
+            if (sessionManager.sendMessage(admin.getId(), json)) {
+                sentCount++;
+            }
+        }
+
+        if (sentCount > 0) {
+            log.debug("管理员广播完成: type={}, 在线管理员={}/{}",
+                    message.getType(), sentCount, admins.size());
+        }
+    }
+
+    /**
+     * 广播消息给所有在线用户
+     * 用于用户状态变化等需要全局通知的场景
+     */
+    private void broadcastToAllOnlineUsers(WebSocketMessage message) {
+        // 设置时间戳
+        if (message.getTimestamp() == null) {
+            message.setTimestamp(LocalDateTime.now());
+        }
+
+        String json = JSONUtil.toJsonStr(message);
+
+        // 获取所有在线用户ID
+        Set<Long> onlineUserIds = sessionManager.getOnlineUserIds();
+        if (onlineUserIds.isEmpty()) {
+            return;
+        }
+
+        int sentCount = 0;
+        for (Long userId : onlineUserIds) {
+            if (sessionManager.sendMessage(userId, json)) {
+                sentCount++;
+            }
+        }
+
+        if (sentCount > 0) {
+            log.debug("全局广播完成: type={}, 在线用户={}",
+                    message.getType(), sentCount);
+        }
     }
 }
