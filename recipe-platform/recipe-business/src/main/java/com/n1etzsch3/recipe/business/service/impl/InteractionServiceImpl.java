@@ -27,6 +27,7 @@ import com.n1etzsch3.recipe.common.core.domain.Result;
 import com.n1etzsch3.recipe.system.entity.SysUser;
 import com.n1etzsch3.recipe.system.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class InteractionServiceImpl implements InteractionService {
 
     private final UserFavoriteMapper favoriteMapper;

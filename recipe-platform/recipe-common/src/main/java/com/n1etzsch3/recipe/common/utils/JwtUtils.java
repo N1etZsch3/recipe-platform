@@ -14,8 +14,8 @@ import java.util.UUID;
 @Slf4j
 public class JwtUtils {
 
-    // 过期时间: 7天
-    private static final long EXPIRATION = 7 * 24 * 60 * 60 * 1000L;
+    // 过期时间: 1天（24小时）
+    private static final long EXPIRATION = 24 * 60 * 60 * 1000L;
 
     // 使用懒加载确保在 dotenv 加载后才初始化密钥
     private static volatile SecretKey key;

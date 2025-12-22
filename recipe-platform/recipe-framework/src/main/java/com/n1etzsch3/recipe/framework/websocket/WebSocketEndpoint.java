@@ -123,6 +123,10 @@ public class WebSocketEndpoint {
         // 处理心跳
         if ("ping".equalsIgnoreCase(message)) {
             try {
+                // 更新 Redis 在线状态（刷新 TTL）
+                if (userOnlineService != null && userId != null) {
+                    userOnlineService.heartbeat(userId);
+                }
                 session.getBasicRemote().sendText("pong");
             } catch (IOException e) {
                 log.error("发送心跳响应失败", e);

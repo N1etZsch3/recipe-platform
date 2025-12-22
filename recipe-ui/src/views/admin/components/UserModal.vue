@@ -73,8 +73,33 @@ const handleSubmit = async () => {
         showToast('请输入用户名')
         return
     }
+    
+    // 用户名格式校验（仅新建时）
+    if (!props.editData) {
+        const usernameRegex = /^[a-zA-Z0-9_]{6,12}$/
+        if (!usernameRegex.test(form.value.username)) {
+            showToast('用户名必须为6-12位，只能包含字母、数字和下划线')
+            return
+        }
+    }
+    
     if (!props.editData && !form.value.password) {
         showToast('请输入密码')
+        return
+    }
+    
+    // 密码格式校验（有输入时）
+    if (form.value.password) {
+        const passwordRegex = /^[a-zA-Z0-9_]+$/
+        if (!passwordRegex.test(form.value.password)) {
+            showToast('密码只能包含字母、数字和下划线')
+            return
+        }
+    }
+    
+    // 昵称验证：1-20字符必填
+    if (!form.value.nickname || form.value.nickname.length < 1 || form.value.nickname.length > 20) {
+        showToast('昵称长度必须为1-20个字符')
         return
     }
 
@@ -140,17 +165,17 @@ const handleSubmit = async () => {
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1.5">用户名 <span class="text-red-500">*</span></label>
-                        <input v-model="form.username" :disabled="!!editData" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-500 transition" placeholder="登录账号" />
+                        <input v-model="form.username" :disabled="!!editData" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-500 transition" placeholder="6-12位字母、数字或下划线" />
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1.5">昵称</label>
-                        <input v-model="form.nickname" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition" placeholder="显示名称" />
+                        <input v-model="form.nickname" maxlength="20" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition" placeholder="昵称，1-20个字符" />
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1.5">密码 <span v-if="!editData" class="text-red-500">*</span></label>
-                    <input v-model="form.password" type="password" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition" :placeholder="editData ? '如果不修改请留空' : '设置登录密码'" />
+                    <input v-model="form.password" type="password" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition" :placeholder="editData ? '如果不修改请留空' : '字母、数字或下划线'" />
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">

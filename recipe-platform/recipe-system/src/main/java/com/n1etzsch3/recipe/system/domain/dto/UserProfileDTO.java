@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 public class UserProfileDTO {
-    @Size(max = 50, message = "昵称长度不能超过50个字符")
+    @Size(min = 1, max = 20, message = "昵称长度必须为1-20个字符")
     private String nickname;
 
     @Size(max = 500, message = "头像URL长度不能超过500个字符")

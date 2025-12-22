@@ -12,7 +12,7 @@ class WebSocketManager {
         this.maxReconnectAttempts = 5
         this.reconnectInterval = 3000 // 3秒
         this.heartbeatInterval = null
-        this.heartbeatTimeout = 30000 // 30秒发送一次心跳
+        this.heartbeatTimeout = 60000 // 60秒发送一次心跳（后端 120 秒超时，确保有 2 次心跳机会）
         this.isManualClose = false
     }
 

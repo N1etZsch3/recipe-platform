@@ -21,11 +21,13 @@ import com.n1etzsch3.recipe.common.core.domain.Result;
 import com.n1etzsch3.recipe.framework.service.UserOnlineService;
 import com.n1etzsch3.recipe.system.domain.dto.LoginDTO;
 import com.n1etzsch3.recipe.system.entity.SysUser;
+import com.n1etzsch3.recipe.system.service.CaptchaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -37,12 +39,17 @@ public class AdminController {
     private final AdminService adminService;
     private final AdminLogService adminLogService;
     private final UserOnlineService userOnlineService;
+    private final CaptchaService captchaService;
 
     // ================== Admin Login ==================
 
     @PostMapping("/login")
     public Result<Map<String, Object>> adminLogin(@RequestBody @Valid LoginDTO loginDTO) {
         log.info("管理员登录: {}", loginDTO.getUsername());
+        // 验证码校验
+        if (!captchaService.validateCaptcha(loginDTO.getCaptchaId(), loginDTO.getCaptchaCode())) {
+            return Result.fail("验证码错误或已过期");
+        }
         return adminService.adminLogin(loginDTO.getUsername(), loginDTO.getPassword());
     }
 

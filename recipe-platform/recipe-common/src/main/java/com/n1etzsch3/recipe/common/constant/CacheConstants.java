@@ -25,6 +25,7 @@ public class CacheConstants {
     public static final String KEY_LOGIN_FAIL = KEY_PREFIX + "login:fail:";
     public static final String KEY_CAPTCHA = KEY_PREFIX + "captcha:";
     public static final String KEY_RATE_LIMIT = KEY_PREFIX + "rate:limit:";
+    public static final String KEY_FORCE_LOGIN = KEY_PREFIX + "force_login:";
 
     // ==================== TTL (秒) ====================
     public static final long TTL_CATEGORIES = 86400; // 24小时

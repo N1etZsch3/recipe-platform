@@ -31,9 +31,11 @@ request.interceptors.response.use(
         if (res.code === 200) {
             return res.data
         } else {
-            // Handle business errors
-            // You might want to use the toast here directly or throw error
-            return Promise.reject(new Error(res.msg || 'Error'))
+            // 创建自定义错误对象，保留完整的响应信息
+            const error = new Error(res.msg || 'Error')
+            error.code = res.code  // 保留状态码（如 409）
+            error.data = res.data  // 保留数据（如 requireConfirm 等）
+            return Promise.reject(error)
         }
     },
     error => {

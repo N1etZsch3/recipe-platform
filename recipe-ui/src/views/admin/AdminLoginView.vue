@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminLogin } from '@/api/admin'
+import { getCaptcha } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { useToast } from '@/components/Toast.vue'
-import { ChefHat, Lock, User, Eye, EyeOff, CheckCircle, ChevronRight, Utensils, Coffee, Soup } from 'lucide-vue-next'
+import { ChefHat, Lock, User, Eye, EyeOff, Utensils, Coffee, Soup, RefreshCw, ShieldCheck, Loader2 } from 'lucide-vue-next'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -12,65 +13,31 @@ const { showToast } = useToast()
 
 const form = ref({
     username: '',
-    password: ''
+    password: '',
+    captchaId: '',
+    captchaCode: ''
 })
 const loading = ref(false)
 const showPassword = ref(false)
+const captchaLoading = ref(false)
+const captchaImage = ref('')
 
-// 滑块验证逻辑
-const sliderRef = ref(null)
-const isVerified = ref(false)
-const sliderWidth = ref(0)
-const isDragging = ref(false)
-const startX = ref(0)
-
-const onDragStart = (e) => {
-    if (isVerified.value) return
-    isDragging.value = true
-    startX.value = e.clientX || e.touches[0].clientX
-    
-    document.addEventListener('mousemove', onDragMove)
-    document.addEventListener('mouseup', onDragEnd)
-    document.addEventListener('touchmove', onDragMove)
-    document.addEventListener('touchend', onDragEnd)
-}
-
-const onDragMove = (e) => {
-    if (!isDragging.value) return
-    const clientX = e.clientX || (e.touches && e.touches[0].clientX)
-    if (!clientX) return
-
-    const diff = clientX - startX.value
-    const max = sliderRef.value.offsetWidth - 40 // 40 is handler width (w-10 = 2.5rem = 40px)
-    
-    if (diff > 0 && diff <= max) {
-        sliderWidth.value = diff
-    } else if (diff > max) {
-        sliderWidth.value = max
-        isVerified.value = true
-        isDragging.value = false
-        cleanUp()
-        showToast('验证通过', 'success')
+// 获取验证码
+const fetchCaptcha = async () => {
+    captchaLoading.value = true
+    try {
+        const res = await getCaptcha()
+        form.value.captchaId = res.captchaId
+        captchaImage.value = res.imageBase64
+    } catch (error) {
+        showToast('获取验证码失败')
+    } finally {
+        captchaLoading.value = false
     }
 }
 
-const onDragEnd = () => {
-    if (!isVerified.value) {
-        isDragging.value = false
-        sliderWidth.value = 0 // 回弹
-    }
-    cleanUp()
-}
-
-const cleanUp = () => {
-    document.removeEventListener('mousemove', onDragMove)
-    document.removeEventListener('mouseup', onDragEnd)
-    document.removeEventListener('touchmove', onDragMove)
-    document.removeEventListener('touchend', onDragEnd)
-}
-
-onUnmounted(() => {
-    cleanUp()
+onMounted(() => {
+    fetchCaptcha()
 })
 
 const handleLogin = async () => {
@@ -79,8 +46,8 @@ const handleLogin = async () => {
         return
     }
     
-    if (!isVerified.value) {
-        showToast('请先完成滑块验证')
+    if (!form.value.captchaCode.trim()) {
+        showToast('请输入验证码')
         return
     }
 
@@ -101,9 +68,9 @@ const handleLogin = async () => {
     } catch (error) {
         console.error('Login failed:', error)
         showToast(error.message || '登录失败')
-        // 重置滑块
-        isVerified.value = false
-        sliderWidth.value = 0
+        // 刷新验证码
+        fetchCaptcha()
+        form.value.captchaCode = ''
     } finally {
         loading.value = false
     }
@@ -222,44 +189,26 @@ const handleLogin = async () => {
                             </div>
                         </div>
 
-                        <!-- 滑块验证 -->
+                        <!-- 验证码 -->
                         <div class="space-y-2">
-                            <label class="text-sm font-medium text-gray-700">安全验证</label>
-                            <div 
-                                ref="sliderRef"
-                                class="relative w-full h-12 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden select-none"
-                                :class="{ 'border-green-500/50 bg-green-50': isVerified }"
-                            >
-                                <!-- 进度条 -->
+                            <label class="text-sm font-medium text-gray-700">验证码</label>
+                            <div class="flex gap-3">
+                                <div class="relative group flex-1">
+                                    <input
+                                        v-model="form.captchaCode"
+                                        type="text"
+                                        placeholder="请输入验证码"
+                                        class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 pl-11 text-gray-900 focus:bg-white focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all"
+                                    />
+                                    <ShieldCheck class="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors" />
+                                </div>
                                 <div 
-                                    class="absolute left-0 top-0 h-full bg-green-500 transition-all duration-0"
-                                    :class="{ 'transition-all duration-300': !isDragging }"
-                                    :style="{ width: isVerified ? '100%' : sliderWidth + 'px' }"
-                                ></div>
-                                
-                                <!-- 拖动块 -->
-                                <div 
-                                    class="absolute top-0 w-10 h-full"
-                                    :style="{ left: isVerified ? 'auto' : sliderWidth + 'px', right: isVerified ? '0' : 'auto' }"
-                                    :class="{ 'cursor-grab active:cursor-grabbing': !isVerified, 'cursor-default': isVerified }"
-                                    @mousedown="onDragStart"
-                                    @touchstart="onDragStart"
+                                    @click="fetchCaptcha" 
+                                    class="w-28 h-[52px] bg-gray-50 border border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-orange-400 transition-colors flex items-center justify-center"
                                 >
-                                    <div class="w-full h-full bg-white border border-gray-200 rounded-xl shadow-sm flex items-center justify-center hover:border-orange-400 transition-colors">
-                                         <component 
-                                            :is="isVerified ? CheckCircle : ChevronRight" 
-                                            class="w-5 h-5"
-                                            :class="isVerified ? 'text-green-500' : 'text-gray-400'"
-                                        />
-                                    </div>
-                                </div>
-
-                                <!-- 文字提示 -->
-                                <div class="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300" :class="{ 'opacity-0': isDragging || isVerified }">
-                                    <span class="text-sm text-gray-400">按住滑块拖动到最右边</span>
-                                </div>
-                                <div v-if="isVerified" class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                    <span class="text-sm font-medium text-white shadow-sm">验证通过</span>
+                                    <Loader2 v-if="captchaLoading" class="w-5 h-5 text-gray-400 animate-spin" />
+                                    <img v-else-if="captchaImage" :src="captchaImage" alt="验证码" class="h-full w-full object-contain" />
+                                    <RefreshCw v-else class="w-5 h-5 text-gray-400" />
                                 </div>
                             </div>
                         </div>

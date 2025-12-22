@@ -100,6 +100,12 @@ const handleAvatarChange = async (event) => {
 
 // 保存个人资料
 const saveProfile = async () => {
+    // 昵称验证
+    if (!profileForm.value.nickname || profileForm.value.nickname.length < 1 || profileForm.value.nickname.length > 20) {
+        showToast('昵称长度必须为1-20个字符')
+        return
+    }
+    
     savingProfile.value = true
     try {
         await updateProfile({
@@ -454,9 +460,9 @@ const unpublishRecipe = async (id) => {
                          <input 
                              type="text" 
                              v-model="profileForm.nickname" 
-                             maxlength="50"
+                             maxlength="20"
                              class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-orange-100 focus:border-orange-500 outline-none transition bg-white"
-                             placeholder="给自己取一个好听的昵称"
+                             placeholder="昵称，1-20个字符"
                          >
                      </div>
                      

@@ -5,6 +5,7 @@ import com.n1etzsch3.recipe.common.core.domain.Result;
 import com.n1etzsch3.recipe.common.utils.JwtUtils;
 import com.n1etzsch3.recipe.framework.annotation.RateLimit;
 import com.n1etzsch3.recipe.framework.service.TokenBlacklistService;
+import com.n1etzsch3.recipe.system.domain.dto.ForceLoginDTO;
 import com.n1etzsch3.recipe.system.domain.dto.LoginDTO;
 import com.n1etzsch3.recipe.system.domain.dto.PasswordUpdateDTO;
 import com.n1etzsch3.recipe.system.domain.dto.RegisterDTO;
@@ -31,7 +32,7 @@ public class AuthController {
     /**
      * 用户注册
      */
-    @RateLimit(time = 60, count = 3, limitType = RateLimit.LimitType.IP)    // 接口限流：同一个IP在60s内最多调用3次
+    @RateLimit(time = 60, count = 3, limitType = RateLimit.LimitType.IP) // 接口限流：同一个IP在60s内最多调用3次
     @PostMapping("/register")
     public Result<?> register(@RequestBody @Valid RegisterDTO registerDTO) {
         log.info("用户注册请求: username={}", registerDTO.getUsername());
@@ -53,9 +54,9 @@ public class AuthController {
      */
     @RateLimit(time = 60, count = 5, limitType = RateLimit.LimitType.IP)
     @PostMapping("/force-login")
-    public Result<Map<String, Object>> forceLogin(@RequestBody @Valid LoginDTO loginDTO) {
-        log.info("用户强制登录请求: username={}", loginDTO.getUsername());
-        return authService.forceLogin(loginDTO);
+    public Result<Map<String, Object>> forceLogin(@RequestBody @Valid ForceLoginDTO forceLoginDTO) {
+        log.info("用户强制登录请求: username={}", forceLoginDTO.getUsername());
+        return authService.forceLogin(forceLoginDTO);
     }
 
     /**

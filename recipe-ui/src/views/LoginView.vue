@@ -75,10 +75,30 @@ const handleSubmit = async () => {
     showToast('请输入用户名和密码')
     return
   }
-  if (!isLogin.value && !form.value.nickname) {
-    showToast('请输入昵称')
-    return
+  
+  // 注册时的字段验证
+  if (!isLogin.value) {
+    // 用户名验证：6-12位，数字字母下划线
+    const usernameRegex = /^[a-zA-Z0-9_]{6,12}$/
+    if (!usernameRegex.test(form.value.username)) {
+      showToast('用户名必须为6-12位，只能包含字母、数字和下划线')
+      return
+    }
+    
+    // 昵称验证：1-20字符必填
+    if (!form.value.nickname || form.value.nickname.length < 1 || form.value.nickname.length > 20) {
+      showToast('昵称长度必须为1-20个字符')
+      return
+    }
+    
+    // 密码验证：数字字母下划线
+    const passwordRegex = /^[a-zA-Z0-9_]+$/
+    if (!passwordRegex.test(form.value.password)) {
+      showToast('密码只能包含字母、数字和下划线')
+      return
+    }
   }
+  
   if (!form.value.captchaCode) {
     showToast('请输入验证码')
     return
@@ -108,22 +128,26 @@ const handleSubmit = async () => {
     }
   } catch (error) {
     // 检查是否是 409 冲突（账号已在其他设备登录）
-    if (error.response?.data?.code === 409 || error.code === 409) {
+    if (error.code === 409) {
+      // 获取后端返回的 forceLoginToken
+      const forceLoginToken = error.data?.forceLoginToken
       const confirmResult = await confirm(
-        error.response?.data?.data?.message || error.message || '该账号已在其他设备登录，是否强制登录？',
+        error.data?.message || error.message || '该账号已在其他设备登录，是否强制登录？',
         { danger: true, confirmText: '强制登录', cancelText: '取消' }
       )
-      if (confirmResult) {
-        // 用户确认强制登录
+      if (confirmResult && forceLoginToken) {
+        // 用户确认强制登录 - 使用 forceLoginToken
         try {
-          // 需要刷新验证码
-          await fetchCaptcha()
-          // 等待用户输入新验证码
-          showToast('请输入验证码后点击登录按钮')
-          // 标记为强制登录模式
-          form.value._forceLogin = true
+          const res = await forceLogin({ 
+            username: form.value.username, 
+            password: form.value.password,
+            forceLoginToken: forceLoginToken
+          })
+          handleLoginSuccess(res)
+          return  // 成功后直接返回
         } catch (e) {
-          showToast('操作失败')
+          showToast(e.message || '强制登录失败')
+          fetchCaptcha()
         }
       } else {
         fetchCaptcha()
@@ -135,31 +159,6 @@ const handleSubmit = async () => {
   } finally {
     loading.value = false
     form.value.captchaCode = '' // 清空验证码
-  }
-}
-
-// 强制登录提交
-const handleForceLoginSubmit = async () => {
-  if (!form.value.captchaCode) {
-    showToast('请输入验证码')
-    return
-  }
-  loading.value = true
-  try {
-    const res = await forceLogin({ 
-      username: form.value.username, 
-      password: form.value.password,
-      captchaId: form.value.captchaId,
-      captchaCode: form.value.captchaCode
-    })
-    handleLoginSuccess(res)
-  } catch (error) {
-    showToast(error.message || '登录失败')
-    fetchCaptcha()
-  } finally {
-    loading.value = false
-    form.value.captchaCode = ''
-    form.value._forceLogin = false
   }
 }
 
@@ -194,7 +193,7 @@ const handleVisitor = () => {
                 v-model="form.username" 
                 type="text" 
                 class="w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-200 transition bg-gray-50 focus:bg-white"
-                placeholder="请输入用户名"
+                :placeholder="isLogin ? '请输入用户名' : '6-12位字母、数字或下划线'"
               >
             </div>
           </div>
@@ -207,7 +206,8 @@ const handleVisitor = () => {
                 v-model="form.nickname" 
                 type="text" 
                 class="w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-200 transition bg-gray-50 focus:bg-white"
-                placeholder="大家怎么称呼你？"
+                placeholder="昵称，1-20个字符"
+                maxlength="20"
               >
             </div>
           </div>
@@ -220,7 +220,7 @@ const handleVisitor = () => {
                 v-model="form.password" 
                 type="password" 
                 class="w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-200 transition bg-gray-50 focus:bg-white"
-                placeholder="请输入密码"
+                :placeholder="isLogin ? '请输入密码' : '字母、数字或下划线'"
               >
             </div>
           </div>
@@ -252,15 +252,12 @@ const handleVisitor = () => {
           </div>
 
           <button 
-            @click="form._forceLogin ? handleForceLoginSubmit() : handleSubmit()" 
+            @click="handleSubmit()" 
             :disabled="loading"
-            :class="[
-              'w-full py-3 rounded-lg transition flex items-center justify-center gap-2 font-bold shadow-md disabled:opacity-70 disabled:cursor-not-allowed',
-              form._forceLogin ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-orange-500 hover:bg-orange-600 text-white'
-            ]"
+            class="w-full py-3 rounded-lg transition flex items-center justify-center gap-2 font-bold shadow-md disabled:opacity-70 disabled:cursor-not-allowed bg-orange-500 hover:bg-orange-600 text-white"
           >
             <Loader2 v-if="loading" class="w-5 h-5 animate-spin" />
-            <span v-else>{{ form._forceLogin ? '确认强制登录' : (isLogin ? '登录' : '立即注册') }}</span>
+            <span v-else>{{ isLogin ? '登录' : '立即注册' }}</span>
             <ArrowRight v-if="!loading" class="w-4 h-4" />
           </button>
         </div>

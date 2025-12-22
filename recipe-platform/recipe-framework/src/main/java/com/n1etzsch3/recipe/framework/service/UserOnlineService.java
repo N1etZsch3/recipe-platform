@@ -24,10 +24,21 @@ public class UserOnlineService {
 
     private static final String KEY_ONLINE_USERS = CacheConstants.KEY_PREFIX + "online:users";
     private static final String KEY_USER_SESSION = CacheConstants.KEY_PREFIX + "session:";
-    private static final long HEARTBEAT_TIMEOUT = 60; // 60秒无心跳视为离线
+    private static final long HEARTBEAT_TIMEOUT = 120; // 120秒无心跳视为离线（前端每60秒发一次心跳）
+    private static final long LOGIN_SESSION_TIMEOUT = 24 * 60 * 60; // 登录会话超时 (24小时，与 Token 一致)
 
     /**
-     * 用户上线/心跳
+     * 用户登录时设置在线状态（使用较长 TTL，与 Token 有效期一致）
+     */
+    public void online(Long userId) {
+        String key = KEY_USER_SESSION + userId;
+        redisTemplate.opsForValue().set(key, System.currentTimeMillis(), LOGIN_SESSION_TIMEOUT, TimeUnit.SECONDS);
+        redisTemplate.opsForSet().add(KEY_ONLINE_USERS, userId.toString());
+        log.info("用户上线: userId={}", userId);
+    }
+
+    /**
+     * 用户心跳/刷新在线状态
      */
     public void heartbeat(Long userId) {
         String key = KEY_USER_SESSION + userId;

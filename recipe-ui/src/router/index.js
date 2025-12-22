@@ -134,7 +134,8 @@ router.beforeEach((to, from, next) => {
 
     // 2. Check Admin
     if (to.meta.requiresAdmin) {
-        if (!userStore.user || userStore.user.role !== 'admin') {
+        const role = userStore.user?.role
+        if (!userStore.user || (role !== 'admin' && role !== 'common_admin')) {
             console.warn('Access denied: Admin only')
             return next({ name: 'admin-login' })
         }
