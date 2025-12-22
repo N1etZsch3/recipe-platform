@@ -20,8 +20,16 @@ public class CosManager {
 
     private final COSClient cosClient;
 
-    // Bucket name from env
-    private final String bucketName = System.getProperty("COS_BUCKET_NAME");
+    /**
+     * 获取 bucket 名称（延迟读取，确保 Dotenv 已加载）
+     */
+    private String getBucketName() {
+        String bucketName = System.getProperty("COS_BUCKET_NAME");
+        if (bucketName == null) {
+            throw new RuntimeException("COS_BUCKET_NAME is not configured in .env file");
+        }
+        return bucketName;
+    }
 
     /**
      * 上传文件
@@ -30,9 +38,7 @@ public class CosManager {
      * @return 文件访问 URL
      */
     public String uploadFile(MultipartFile file) {
-        if (bucketName == null) {
-            throw new RuntimeException("COS_BUCKET_NAME is not configured");
-        }
+        String bucketName = getBucketName();
 
         String originalFilename = file.getOriginalFilename();
         String extension = originalFilename != null && originalFilename.contains(".")
