@@ -569,9 +569,11 @@ const getAvatarUrl = (avatar, name) => {
                     <div class="relative flex-shrink-0">
                       <img 
                         :src="getAvatarUrl(conv.avatar, conv.nickname)" 
-                        class="w-10 h-10 rounded-full object-cover bg-gray-200"
+                        class="w-10 h-10 rounded-full object-cover bg-gray-200 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+                        @click.stop="router.push(`/user/${conv.userId}`)"
+                        title="查看用户主页"
                       >
-                      <div v-if="conv.unread > 0" class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                      <div v-if="conv.unread > 0" class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold pointer-events-none">
                         {{ conv.unread > 9 ? '9+' : conv.unread }}
                       </div>
                     </div>
@@ -610,7 +612,9 @@ const getAvatarUrl = (avatar, name) => {
                     </button>
                     <img 
                       :src="getAvatarUrl(selectedConversation.avatar, selectedConversation.nickname)" 
-                      class="w-9 h-9 rounded-full object-cover bg-gray-200"
+                      class="w-9 h-9 rounded-full object-cover bg-gray-200 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+                      @click="router.push(`/user/${selectedConversation.userId}`)"
+                      title="查看用户主页"
                     >
                     <div class="flex-1">
                       <div class="font-medium text-gray-800 text-sm">{{ selectedConversation.nickname }}</div>
@@ -639,7 +643,9 @@ const getAvatarUrl = (avatar, name) => {
                       <img 
                         v-if="!msg.isMine" 
                         :src="getAvatarUrl(selectedConversation.avatar, selectedConversation.nickname)" 
-                        class="w-8 h-8 rounded-full object-cover bg-gray-200 mr-2 flex-shrink-0 self-end mb-4"
+                        class="w-8 h-8 rounded-full object-cover bg-gray-200 mr-2 flex-shrink-0 self-end mb-4 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+                        @click="router.push(`/user/${selectedConversation.userId}`)"
+                        title="查看用户主页"
                       >
                       <div :class="['max-w-[70%] flex flex-col', msg.isMine ? 'items-end' : 'items-start']">
                         <div class="flex items-center gap-1.5">

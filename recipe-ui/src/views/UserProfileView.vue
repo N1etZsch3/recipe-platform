@@ -102,28 +102,26 @@ const handleFollow = async () => {
 }
 
 // 发起私信
-const handleChat = async () => {
+const handleChat = () => {
     if (!userStore.user) {
         router.push('/login')
         return
     }
-    // 检查是否已经是当前活跃会话，或者跳转到 MessagesView 并带参数
-    // 目前 MessagesView 设计主要是会话列表。
-    // 如果想要直接带入私信对象，可能需要 MessagesView 支持 query 参数
-    // 这里我们先简单跳转到私信页面，用户可以在那里发起（或者我们优化 MessageView 支持传参）
-    // 为了更好的体验，我们假设 MessageView 可以通过 query 选中
-    // 但根据之前代码 MessagesView 主要是 listConversations。
-    // 所以，我们可以先调用 'sendMessage' API 发一条空消息或者直接跳转？
-    // 或者跳转到 MessagesView 并展开这个人的对话框？
-    // User demand: "点击关注的人... 访问主页... 然后有他发送的菜谱"
-    // User did NOT explicitly say "Chat button on profile page". 
-    // But it's good practice. I will add it but maybe just route to /messages
-    router.push('/messages')
+    // 跳转到私信页面，带上用户信息以直接打开与该用户的对话
+    router.push({
+        path: '/messages',
+        query: {
+            chatWith: targetUserId,
+            chatName: userProfile.value?.nickname || '用户'
+        }
+    })
 }
 
 
 onMounted(() => {
-  if (targetUserId == userStore.user?.id) {
+  // 如果不是预览模式，且看的是自己，跳转到个人中心
+  const isPreviewMode = route.query.preview === 'true'
+  if (targetUserId == userStore.user?.id && !isPreviewMode) {
       // 如果看的是自己，跳转到个人中心
       router.replace('/profile')
       return
@@ -177,10 +175,15 @@ onMounted(() => {
                             <UserPlus v-else class="w-4 h-4" />
                             {{ userProfile.isFollow ? '已关注' : '关注' }}
                          </button>
-                         <!-- 私信入口 (Optional) -->
-                         <!-- <button @click="handleChat" class="px-4 py-2 rounded-full bg-white border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition flex items-center gap-2">
-                             <MessageCircle class="w-4 h-4" /> 私信
-                         </button> -->
+                         <!-- 私信入口，关注后显示 -->
+                         <button 
+                            v-if="userProfile.isFollow"
+                            @click="handleChat" 
+                            class="px-5 py-2 rounded-full bg-white border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 hover:border-orange-300 hover:text-orange-500 transition flex items-center gap-2 shadow-sm"
+                         >
+                             <MessageCircle class="w-4 h-4" />
+                             私信
+                         </button>
                     </div>
                 </div>
             </div>

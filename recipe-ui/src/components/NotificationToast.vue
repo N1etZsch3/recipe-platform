@@ -143,7 +143,7 @@ function close() {
 <style scoped>
 .notification-toast {
   position: fixed;
-  top: 20px;
+  top: 80px; /* 位于导航栏(h-16=64px)下方 */
   right: 20px;
   min-width: 320px;
   max-width: 420px;
@@ -291,7 +291,7 @@ function close() {
     right: 12px;
     min-width: auto;
     max-width: none;
-    top: 12px;
+    top: 72px; /* 移动端导航栏下方 */
   }
   
   .slide-fade-enter-from {

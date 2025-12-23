@@ -49,8 +49,8 @@ export const useToast = () => {
 </script>
 
 <template>
-  <!-- Toast 容器 - 右侧弹出 -->
-  <div class="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+  <!-- Toast 容器 - 右侧弹出，位于导航栏下方 -->
+  <div class="fixed top-20 right-4 z-[100] flex flex-col gap-2 max-w-sm">
     <TransitionGroup name="toast">
       <div 
         v-for="toast in globalToasts" 

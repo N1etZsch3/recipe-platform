@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>美食菜谱 - 仿小红书布局</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome图标 -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 自定义Tailwind配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        xhs: {
+                            red: '#ff2442', // 小红书主红
+                            light: '#f8f8f8', // 背景浅灰
+                            gray: '#999999', // 次要文字
+                            dark: '#333333', // 主要文字
+                        }
+                    },
+                    fontFamily: {
+                        xhs: ['PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            /* 自定义工具类 */
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            /* 瀑布流核心样式 */
+            .waterfall {
+                column-count: 3;
+                column-gap: 18px;
+            }
+            .waterfall-item {
+                break-inside: avoid;
+                margin-bottom: 18px;
+            }
+            /* 响应式适配瀑布流列数 */
+            @media (max-width: 1200px) {
+                .waterfall {
+                    column-count: 2;
+                }
+            }
+            @media (max-width: 768px) {
+                .waterfall {
+                    column-count: 1;
+                }
+                .sidebar {
+                    display: none;
+                }
+            }
+        }
+    </style>
+</head>
+<body class="font-xhs bg-xhs-light text-xhs-dark antialiased">
+    <!-- 整体布局容器 -->
+    <div class="flex min-h-screen">
+        <!-- 左侧固定侧边栏 -->
+        <aside class="sidebar w-64 h-screen fixed left-0 top-0 bg-white border-r border-gray-100 flex flex-col px-4 py-6 z-20">
+            <!-- 品牌Logo -->
+            <div class="flex items-center mb-10">
+                <span class="text-xhs-red text-2xl font-bold mr-2"><i class="fa fa-book"></i></span>
+                <h1 class="text-xl font-bold">美食菜谱</h1>
+            </div>
+            
+            <!-- 功能导航 -->
+            <nav class="flex-1">
+                <ul class="space-y-6">
+                    <li>
+                        <a href="#" class="flex items-center px-3 py-2 rounded-lg bg-xhs-light text-xhs-red font-medium">
+                            <i class="fa fa-compass mr-3 text-lg"></i>
+                            <span>发现</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="flex items-center px-3 py-2 rounded-lg hover:bg-xhs-light transition-colors">
+                            <i class="fa fa-upload mr-3 text-lg"></i>
+                            <span>发布菜谱</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="flex items-center px-3 py-2 rounded-lg hover:bg-xhs-light transition-colors">
+                            <i class="fa fa-bell mr-3 text-lg"></i>
+                            <span>通知</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="flex items-center px-3 py-2 rounded-lg hover:bg-xhs-light transition-colors">
+                            <i class="fa fa-user mr-3 text-lg"></i>
+                            <span>我的收藏</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <!-- 底部更多 -->
+            <div class="mt-auto">
+                <a href="#" class="flex items-center px-3 py-2 rounded-lg hover:bg-xhs-light transition-colors">
+                    <i class="fa fa-ellipsis-h mr-3 text-lg"></i>
+                    <span>更多</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- 右侧主内容区 -->
+        <main class="flex-1 ml-64">
+            <!-- 顶部固定搜索栏 -->
+            <header class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-10">
+                <div class="flex items-center justify-between max-w-7xl mx-auto">
+                    <!-- 搜索框 -->
+                    <div class="relative w-full max-w-xl">
+                        <input 
+                            type="text" 
+                            placeholder="搜索菜谱、食材、做法..." 
+                            class="w-full pl-10 pr-4 py-2 rounded-full bg-xhs-light focus:outline-none focus:ring-2 focus:ring-xhs-red/20 transition-all"
+                        >
+                        <i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-xhs-gray"></i>
+                    </div>
+                    
+                    <!-- 右侧功能入口 -->
+                    <div class="flex items-center space-x-6 ml-4">
+                        <a href="#" class="text-xhs-dark hover:text-xhs-red transition-colors">创作中心</a>
+                        <a href="#" class="text-xhs-dark hover:text-xhs-red transition-colors">商务合作</a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 分类导航 -->
+            <div class="sticky top-20 bg-white border-b border-gray-100 px-6 py-3 z-10">
+                <div class="max-w-7xl mx-auto overflow-x-auto scrollbar-hide">
+                    <ul class="flex space-x-6 whitespace-nowrap">
+                        <li><a href="#" class="text-xhs-red font-medium pb-1 border-b-2 border-xhs-red">推荐</a></li>
+                        <li><a href="#" class="text-xhs-gray hover:text-xhs-dark transition-colors">家常菜</a></li>
+                        <li><a href="#" class="text-xhs-gray hover:text-xhs-dark transition-colors">甜品</a></li>
+                        <li><a href="#" class="text-xhs-gray hover:text-xhs-dark transition-colors">烘焙</a></li>
+                        <li><a href="#" class="text-xhs-gray hover:text-xhs-dark transition-colors">减脂餐</a></li>
+                        <li><a href="#" class="text-xhs-gray hover:text-xhs-dark transition-colors">川菜</a></li>
+                        <li><a href="#" class="text-xhs-gray hover:text-xhs-dark transition-colors">粤菜</a></li>
+                        <li><a href="#" class="text-xhs-gray hover:text-xhs-dark transition-colors">西餐</a></li>
+                        <li><a href="#" class="text-xhs-gray hover:text-xhs-dark transition-colors">早餐</a></li>
+                        <li><a href="#" class="text-xhs-gray hover:text-xhs-dark transition-colors">汤羹</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 瀑布流内容区 -->
+            <div class="px-6 py-6 max-w-7xl mx-auto">
+                <div class="waterfall">
+                    <!-- 菜谱卡片1 -->
+                    <div class="waterfall-item">
+                        <div class="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                            <img 
+                                src="https://picsum.photos/seed/recipe1/400/500" 
+                                alt="番茄牛腩做法" 
+                                class="w-full h-auto object-cover"
+                            >
+                            <div class="p-4">
+                                <h3 class="font-medium mb-2 line-clamp-2">超下饭的番茄牛腩！软烂入味零失败</h3>
+                                <div class="flex items-center justify-between text-xhs-gray text-sm">
+                                    <div class="flex items-center">
+                                        <img src="https://picsum.photos/seed/chef1/32/32" alt="作者头像" class="w-6 h-6 rounded-full mr-2">
+                                        <span>美食小厨娘</span>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span><i class="fa fa-heart-o mr-1"></i> 1.2万</span>
+                                        <span><i class="fa fa-comment-o mr-1"></i> 328</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 菜谱卡片2 -->
+                    <div class="waterfall-item">
+                        <div class="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                            <img 
+                                src="https://picsum.photos/seed/recipe2/400/450" 
+                                alt="抹茶提拉米苏" 
+                                class="w-full h-auto object-cover"
+                            >
+                            <div class="p-4">
+                                <h3 class="font-medium mb-2 line-clamp-2">免烤箱！抹茶提拉米苏，入口即化</h3>
+                                <div class="flex items-center justify-between text-xhs-gray text-sm">
+                                    <div class="flex items-center">
+                                        <img src="https://picsum.photos/seed/chef2/32/32" alt="作者头像" class="w-6 h-6 rounded-full mr-2">
+                                        <span>甜品研究所</span>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span><i class="fa fa-heart-o mr-1"></i> 8960</span>
+                                        <span><i class="fa fa-comment-o mr-1"></i> 215</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 菜谱卡片3 -->
+                    <div class="waterfall-item">
+                        <div class="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                            <img 
+                                src="https://picsum.photos/seed/recipe3/400/550" 
+                                alt="减脂期凉拌菜" 
+                                class="w-full h-auto object-cover"
+                            >
+                            <div class="p-4">
+                                <h3 class="font-medium mb-2 line-clamp-2">3分钟搞定！减脂期必备凉拌菜，低卡又饱腹</h3>
+                                <div class="flex items-center justify-between text-xhs-gray text-sm">
+                                    <div class="flex items-center">
+                                        <img src="https://picsum.photos/seed/chef3/32/32" alt="作者头像" class="w-6 h-6 rounded-full mr-2">
+                                        <span>减脂餐日记</span>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span><i class="fa fa-heart-o mr-1"></i> 7540</span>
+                                        <span><i class="fa fa-comment-o mr-1"></i> 189</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 菜谱卡片4 -->
+                    <div class="waterfall-item">
+                        <div class="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                            <img 
+                                src="https://picsum.photos/seed/recipe4/400/480" 
+                                alt="麻婆豆腐" 
+                                class="w-full h-auto object-cover"
+                            >
+                            <div class="p-4">
+                                <h3 class="font-medium mb-2 line-clamp-2">正宗川味麻婆豆腐！麻辣鲜香，配米饭能吃3碗</h3>
+                                <div class="flex items-center justify-between text-xhs-gray text-sm">
+                                    <div class="flex items-center">
+                                        <img src="https://picsum.photos/seed/chef4/32/32" alt="作者头像" class="w-6 h-6 rounded-full mr-2">
+                                        <span>川味厨房</span>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span><i class="fa fa-heart-o mr-1"></i> 9870</span>
+                                        <span><i class="fa fa-comment-o mr-1"></i> 412</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 菜谱卡片5 -->
+                    <div class="waterfall-item">
+                        <div class="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                            <img 
+                                src="https://picsum.photos/seed/recipe5/400/520" 
+                                alt="广式早茶虾饺" 
+                                class="w-full h-auto object-cover"
+                            >
+                            <div class="p-4">
+                                <h3 class="font-medium mb-2 line-clamp-2">在家做广式虾饺！皮韧馅足，和茶楼一个味</h3>
+                                <div class="flex items-center justify-between text-xhs-gray text-sm">
+                                    <div class="flex items-center">
+                                        <img src="https://picsum.photos/seed/chef5/32/32" alt="作者头像" class="w-6 h-6 rounded-full mr-2">
+                                        <span>粤吃粤香</span>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span><i class="fa fa-heart-o mr-1"></i> 1.5万</span>
+                                        <span><i class="fa fa-comment-o mr-1"></i> 568</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 菜谱卡片6 -->
+                    <div class="waterfall-item">
+                        <div class="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                            <img 
+                                src="https://picsum.photos/seed/recipe6/400/460" 
+                                alt="全麦吐司早餐" 
+                                class="w-full h-auto object-cover"
+                            >
+                            <div class="p-4">
+                                <h3 class="font-medium mb-2 line-clamp-2">5分钟快手早餐！全麦吐司的N种吃法，营养又简单</h3>
+                                <div class="flex items-center justify-between text-xhs-gray text-sm">
+                                    <div class="flex items-center">
+                                        <img src="https://picsum.photos/seed/chef6/32/32" alt="作者头像" class="w-6 h-6 rounded-full mr-2">
+                                        <span>早餐不重样</span>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span><i class="fa fa-heart-o mr-1"></i> 6780</span>
+                                        <span><i class="fa fa-comment-o mr-1"></i> 156</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 简单的JS增强交互 -->
+    <script>
+        // 监听滚动，优化导航栏样式
+        window.addEventListener('scroll', () => {
+            const nav = document.querySelector('.sticky.top-20');
+            if (window.scrollY > 80) {
+                nav.classList.add('shadow-sm');
+            } else {
+                nav.classList.remove('shadow-sm');
+            }
+        });
+
+        // 瀑布流图片懒加载（模拟）
+        document.addEventListener('DOMContentLoaded', () => {
+            const images = document.querySelectorAll('img');
+            images.forEach(img => {
+                img.loading = 'lazy';
+            });
+        });
+    </script>
+</body>
+</html>

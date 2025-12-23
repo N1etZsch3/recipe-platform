@@ -250,7 +250,7 @@ const unpublishRecipe = async (id) => {
 
 
 <template>
-  <div class="max-w-6xl mx-auto p-4 flex flex-col md:flex-row gap-6 pt-24">
+  <div class="max-w-6xl mx-auto p-4 flex flex-col md:flex-row gap-6 pt-6">
     <!-- 侧边栏 -->
     <div class="w-full md:w-64 bg-white rounded-xl shadow-sm p-6 h-fit border border-gray-100">
         <div class="text-center mb-6">
@@ -262,6 +262,14 @@ const unpublishRecipe = async (id) => {
             </div>
             <h2 class="font-bold text-lg text-gray-800">{{ userStore.user?.nickname || userStore.user?.username }}</h2>
             <p class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full inline-block mt-1">ID: {{ userStore.user?.id }}</p>
+            <!-- 查看我的主页入口 -->
+            <button 
+                @click="router.push(`/user/${userStore.user?.id}?preview=true`)"
+                class="mt-3 w-full px-3 py-2 text-sm text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg transition flex items-center justify-center gap-1.5 font-medium"
+            >
+                <User class="w-4 h-4" />
+                查看我的主页
+            </button>
         </div>
         <div class="space-y-1">
             <button 
