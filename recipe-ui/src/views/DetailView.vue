@@ -232,10 +232,10 @@ const canDeleteComment = (comment) => {
 
 
 <template>
-  <div v-if="selectedRecipe" class="min-h-screen bg-gray-50 pb-10">
+  <div v-if="selectedRecipe" class="p-6 bg-gray-50/50 min-h-full">
 
     <!-- 主内容容器 -->
-    <div class="max-w-3xl mx-auto px-4 pt-4">
+    <div class="max-w-3xl mx-auto">
       
       <!-- 顶部标题栏 -->
       <div class="bg-white rounded-xl shadow-sm p-4 mb-4 flex items-center">

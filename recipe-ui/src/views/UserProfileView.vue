@@ -132,8 +132,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-orange-50/30 pt-20 pb-10">
-    <div class="max-w-5xl mx-auto px-4">
+  <div class="p-6 bg-orange-50/30 min-h-full">
+    <div class="max-w-4xl mx-auto">
       <!-- 顶部返回 -->
       <button @click="router.back()" class="flex items-center gap-1 text-gray-500 hover:text-gray-800 mb-6 transition">
         <ArrowLeft class="w-5 h-5" /> 返回

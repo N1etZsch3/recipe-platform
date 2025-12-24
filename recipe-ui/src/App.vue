@@ -4,7 +4,7 @@ import { ref, provide, watch, onMounted, onUnmounted, computed, watchEffect, nex
 import { useUserStore } from '@/stores/user'
 import { wsManager } from '@/utils/websocket'
 import { setModalRef } from '@/composables/useModal'
-import Navbar from './components/Navbar.vue'
+import MainLayout from './components/MainLayout.vue'
 import Toast from './components/Toast.vue'
 import Modal from './components/Modal.vue'
 import NotificationToast from './components/NotificationToast.vue'
@@ -16,6 +16,11 @@ const modalRef = ref(null)
 // 判断是否为管理后台路由（包括登录页和后台所有页面）
 const isAdminRoute = computed(() => {
   return route.path.startsWith('/backstage-m9x2k7')
+})
+
+// 判断是否为独立布局页面（着陆页、登录页）
+const isStandalonePage = computed(() => {
+  return route.path === '/' || route.path === '/login'
 })
 
 // 注册全局模态框引用 - 使用 watchEffect 确保每次渲染后都检查
@@ -65,7 +70,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- 管理后台使用独立布局，不显示普通导航栏 -->
+  <!-- 管理后台使用独立布局 -->
   <div v-if="isAdminRoute" class="min-h-screen">
     <RouterView v-slot="{ Component }">
       <Transition name="page-fade" mode="out-in">
@@ -74,19 +79,25 @@ onUnmounted(() => {
     </RouterView>
   </div>
   
-  <!-- 普通用户页面 -->
-  <div v-else class="min-h-screen bg-[#FFFBF5] text-gray-800 font-sans flex flex-col">
-    <Navbar />
-    <div class="flex-grow">
-      <RouterView v-slot="{ Component }">
-        <Transition name="page-fade" mode="out-in">
-          <component :is="Component" />
-        </Transition>
-      </RouterView>
-    </div>
-    <!-- 实时通知 Toast - 仅用户端显示 -->
-    <NotificationToast />
+  <!-- 着陆页、登录页使用独立全屏布局 -->
+  <div v-else-if="isStandalonePage" class="min-h-screen bg-[#FFFBF5] text-gray-800 font-sans">
+    <RouterView v-slot="{ Component }">
+      <Transition name="page-fade" mode="out-in">
+        <component :is="Component" />
+      </Transition>
+    </RouterView>
   </div>
+  
+  <!-- 普通用户页面使用左右布局 -->
+  <MainLayout v-else>
+    <RouterView v-slot="{ Component }">
+      <Transition name="page-fade" mode="out-in">
+        <component :is="Component" />
+      </Transition>
+    </RouterView>
+    <!-- 实时通知 Toast -->
+    <NotificationToast />
+  </MainLayout>
   
   <!-- 全局组件 - 放在条件渲染外面确保始终存在 -->
   <Toast />

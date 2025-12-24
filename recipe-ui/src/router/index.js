@@ -62,7 +62,7 @@ const router = createRouter({
         {
             path: '/messages',
             name: 'messages',
-            component: () => import('../views/MessagesView.vue'),
+            component: () => import('../views/messages/index.vue'),
             meta: { requiresAuth: true }
         },
         // 隐藏的管理后台路径
@@ -122,6 +122,11 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     const userStore = useUserStore()
     const token = userStore.token
+
+    // 0. 已登录用户访问着陆页时，重定向到主页
+    if (to.path === '/' && token) {
+        return next({ name: 'home' })
+    }
 
     // 1. Check Auth (跳过管理员登录页)
     if (to.meta.requiresAuth && !token) {

@@ -14,10 +14,13 @@ import {
     LogOut,
     Menu,
     ChevronRight,
-    Bell,
-    ChevronDown
+    ChevronDown,
+    Lock,
+    X
 } from 'lucide-vue-next'
 import NotificationCenter from '@/components/NotificationCenter.vue'
+import { changePassword } from '@/api/auth'
+import { useToast } from '@/components/Toast.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -141,6 +144,53 @@ const handleLogout = () => {
 
 const markAllAsRead = () => {
     notificationStore.markAllAsRead()
+}
+
+// 修改密码相关
+const { showToast } = useToast()
+const showPasswordModal = ref(false)
+const changingPassword = ref(false)
+const passwordForm = ref({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+})
+
+const openPasswordModal = () => {
+    showUserMenu.value = false
+    passwordForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
+    showPasswordModal.value = true
+}
+
+const handlePasswordChange = async () => {
+    if (!passwordForm.value.oldPassword || !passwordForm.value.newPassword) {
+        showToast('请填写完整信息', 'error')
+        return
+    }
+    if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+        showToast('两次输入的密码不一致', 'error')
+        return
+    }
+    if (passwordForm.value.newPassword.length < 6) {
+        showToast('新密码长度不能少于6位', 'error')
+        return
+    }
+    
+    changingPassword.value = true
+    try {
+        await changePassword({
+            oldPassword: passwordForm.value.oldPassword,
+            newPassword: passwordForm.value.newPassword
+        })
+        showToast('密码修改成功，请重新登录', 'success')
+        showPasswordModal.value = false
+        handleLogout()
+    } catch (error) {
+        console.error(error)
+        showToast(error.message || '密码修改失败', 'error')
+    } finally {
+        changingPassword.value = false
+    }
 }
 
 const currentPageName = computed(() => {
@@ -348,6 +398,13 @@ const breadcrumbs = computed(() => {
                                     <p class="text-xs text-gray-400">超级管理员</p>
                                 </div>
                                 <button 
+                                    @click="openPasswordModal"
+                                    class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-orange-500 transition"
+                                >
+                                    <Lock class="w-4 h-4" />
+                                    修改密码
+                                </button>
+                                <button 
                                     @click="handleLogout"
                                     class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-red-500 transition"
                                 >
@@ -372,6 +429,67 @@ const breadcrumbs = computed(() => {
             @click="showUserMenu = false; showNotificationPanel = false"
             class="fixed inset-0 z-40"
         ></div>
+
+        <!-- 修改密码弹窗 -->
+        <div v-if="showPasswordModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-fade-in relative">
+                <button @click="showPasswordModal = false" class="absolute right-4 top-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition">
+                    <X class="w-5 h-5" />
+                </button>
+                
+                <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <div class="p-2 bg-orange-100 rounded-lg">
+                        <Lock class="w-5 h-5 text-orange-500" />
+                    </div>
+                    修改密码
+                </h3>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">当前密码</label>
+                        <input 
+                            v-model="passwordForm.oldPassword" 
+                            type="password" 
+                            placeholder="请输入当前使用的密码"
+                            class="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-orange-100 focus:border-orange-500 transition outline-none"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">新密码</label>
+                        <input 
+                            v-model="passwordForm.newPassword" 
+                            type="password" 
+                            placeholder="请输入新密码 (至少6位)"
+                            class="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-orange-100 focus:border-orange-500 transition outline-none"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">确认新密码</label>
+                        <input 
+                            v-model="passwordForm.confirmPassword" 
+                            type="password" 
+                            placeholder="请再次输入新密码"
+                            class="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-orange-100 focus:border-orange-500 transition outline-none"
+                        >
+                    </div>
+                </div>
+                
+                <div class="flex gap-3 mt-8">
+                    <button 
+                        @click="showPasswordModal = false"
+                        class="flex-1 py-3 text-gray-600 bg-gray-100 hover:bg-gray-200 font-bold rounded-xl transition"
+                    >取消</button>
+                    <button 
+                        @click="handlePasswordChange"
+                        :disabled="changingPassword"
+                        class="flex-1 py-3 text-white bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 font-bold rounded-xl shadow-lg shadow-orange-200/50 transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:grayscale"
+                    >
+                        <div v-if="changingPassword" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        {{ changingPassword ? '修改中...' : '确认修改' }}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 

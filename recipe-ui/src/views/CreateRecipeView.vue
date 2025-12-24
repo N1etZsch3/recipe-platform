@@ -221,7 +221,8 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="max-w-2xl mx-auto p-4 pt-8 pb-20">
+  <div class="p-6">
+    <div class="max-w-2xl mx-auto">
     <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg border border-gray-100">
         <h2 class="text-2xl font-bold mb-6 flex items-center gap-2 text-gray-800">
             <PenTool class="w-6 h-6 text-orange-500" /> {{ isEditMode ? '编辑菜谱' : '发布新菜谱' }}
@@ -359,6 +360,7 @@ const handleSubmit = async () => {
                 </button>
             </div>
         </div>
+    </div>
     </div>
   </div>
 </template>
