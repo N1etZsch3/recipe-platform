@@ -278,12 +278,18 @@ const canDeleteComment = (comment) => {
           <!-- 作者信息 -->
           <div class="flex items-center justify-between py-4 border-t border-b border-gray-100">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full overflow-hidden bg-gray-200">
+              <div 
+                class="w-10 h-10 rounded-full overflow-hidden bg-gray-200 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+                @click="router.push(`/user/${selectedRecipe.userId}`)"
+              >
                 <img v-if="selectedRecipe.authorAvatar" :src="selectedRecipe.authorAvatar" class="w-full h-full object-cover">
                 <div v-else class="w-full h-full flex items-center justify-center text-gray-500 font-medium">{{ selectedRecipe.authorName?.charAt(0) }}</div>
               </div>
               <div>
-                <div class="font-medium text-gray-800 text-sm">{{ selectedRecipe.authorName }}</div>
+                <div 
+                  class="font-medium text-gray-800 text-sm cursor-pointer hover:text-orange-500 transition"
+                  @click="router.push(`/user/${selectedRecipe.userId}`)"
+                >{{ selectedRecipe.authorName }}</div>
                 <div class="text-xs text-gray-400">{{ selectedRecipe.publishTime }}</div>
               </div>
             </div>
@@ -373,7 +379,10 @@ const canDeleteComment = (comment) => {
           <div v-for="comment in comments" :key="comment.id" class="group">
             <!-- 主评论 -->
             <div class="flex gap-3">
-              <div class="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 flex-shrink-0 shadow-sm">
+              <div 
+                class="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 flex-shrink-0 shadow-sm cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+                @click="router.push(`/user/${comment.userId}`)"
+              >
                 <img v-if="comment.avatar" :src="comment.avatar" class="w-full h-full object-cover">
                 <div v-else class="w-full h-full flex items-center justify-center text-gray-500 font-bold text-sm">{{ comment.nickname?.charAt(0) }}</div>
               </div>
@@ -381,7 +390,10 @@ const canDeleteComment = (comment) => {
                 <div class="bg-gray-50 rounded-xl p-3 hover:bg-gray-100 transition">
                   <div class="flex items-center justify-between mb-1">
                     <div class="flex items-center gap-2">
-                      <span class="font-medium text-sm text-gray-800">{{ comment.nickname }}</span>
+                      <span 
+                        class="font-medium text-sm text-gray-800 cursor-pointer hover:text-orange-500 transition"
+                        @click="router.push(`/user/${comment.userId}`)"
+                      >{{ comment.nickname }}</span>
                       <span class="text-xs text-gray-400">{{ comment.createTime }}</span>
                     </div>
                   </div>
@@ -429,14 +441,20 @@ const canDeleteComment = (comment) => {
                 <!-- 回复列表 -->
                 <div v-if="comment.replies?.length > 0" class="mt-3 ml-2 pl-3 border-l-2 border-orange-100 space-y-3">
                   <div v-for="reply in comment.replies" :key="reply.id" class="flex gap-2">
-                    <div class="w-7 h-7 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                    <div 
+                      class="w-7 h-7 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+                      @click="router.push(`/user/${reply.userId}`)"
+                    >
                       <img v-if="reply.avatar" :src="reply.avatar" class="w-full h-full object-cover">
                       <div v-else class="w-full h-full flex items-center justify-center text-gray-400 text-xs font-bold">{{ reply.nickname?.charAt(0) }}</div>
                     </div>
                     <div class="flex-1">
                       <div class="bg-orange-50 rounded-lg p-2">
                         <div class="flex items-center gap-2 mb-0.5">
-                          <span class="font-medium text-xs text-gray-800">{{ reply.nickname }}</span>
+                          <span 
+                            class="font-medium text-xs text-gray-800 cursor-pointer hover:text-orange-500 transition"
+                            @click="router.push(`/user/${reply.userId}`)"
+                          >{{ reply.nickname }}</span>
                           <span v-if="reply.replyToNickname" class="text-xs text-gray-400">回复 <span class="text-orange-500">@{{ reply.replyToNickname }}</span></span>
                           <span class="text-xs text-gray-400">{{ reply.createTime }}</span>
                         </div>

@@ -21,61 +21,119 @@ const userStore = useUserStore()
 const notificationStore = useNotificationStore()
 const { showToast } = useToast()
 
-// 左侧导航项
-const navItems = [
-  { id: 'messages', name: '我的消息', icon: Mail },
-  { id: 'myComments', name: '我的评论', icon: Edit3 },
-  { id: 'replies', name: '回复我的', icon: MessageCircle },
-  { id: 'likes', name: '收到的赞', icon: Heart },
-  { id: 'system', name: '系统通知', icon: Bell }
-]
+// ============= 状态定义 =============
+const loadingList = ref(false)
+const selectedItem = ref(null)
+const searchKeyword = ref('')
+const mobileView = ref('list')
 
-const activeNav = ref('messages')
-
-// ============= 我的消息相关 =============
+// 私信相关
 const conversations = ref([])
-const loadingConversations = ref(false)
-const selectedConversation = ref(null)
 const messages = ref([])
 const loadingMessages = ref(false)
 const messagesContainer = ref(null)
 const newMessage = ref('')
-const searchKeyword = ref('')
 const onlineStatus = ref({})
 
-// ============= 我的评论相关 =============
-const myComments = ref([])
-const loadingMyComments = ref(false)
-const selectedCommentIds = ref([])
-const isSelectMode = ref(false)
-
-// ============= 回复我的相关 =============
+// 回复我的
 const replies = ref([])
-const loadingReplies = ref(false)
 
-// ============= 收到的赞相关 =============
+// 收到的赞
 const likes = ref([])
-const loadingLikes = ref(false)
-const selectedLike = ref(null)
 const likeDetail = ref([])
 const loadingLikeDetail = ref(false)
 
-// ============= 系统通知相关 =============
+// 系统通知
 const systemNotifications = ref([])
-const loadingSystem = ref(false)
 
-// 移动端显示控制
-const mobileView = ref('nav')
+// ============= 类型配置 =============
+const typeConfig = {
+  message: { label: '私信', color: 'bg-blue-500', textColor: 'text-blue-600', icon: Mail },
+  reply: { label: '回复', color: 'bg-green-500', textColor: 'text-green-600', icon: MessageCircle },
+  like: { label: '点赞', color: 'bg-pink-500', textColor: 'text-pink-600', icon: Heart },
+  system: { label: '系统', color: 'bg-purple-500', textColor: 'text-purple-600', icon: Bell }
+}
 
-// 过滤后的会话列表
-const filteredConversations = computed(() => {
-  if (!searchKeyword.value) return conversations.value
-  return conversations.value.filter(c => 
-    c.nickname?.toLowerCase().includes(searchKeyword.value.toLowerCase())
+// ============= 统一消息列表（核心）=============
+const unifiedList = computed(() => {
+  const list = []
+  
+  // 1. 私信消息
+  conversations.value.forEach(c => {
+    list.push({
+      id: `message-${c.userId}`,
+      type: 'message',
+      userId: c.userId,
+      avatar: c.avatar,
+      title: c.nickname,
+      subtitle: c.lastMessage || '暂无消息',
+      time: c.time,
+      timestamp: c.rawTime ? new Date(c.rawTime).getTime() : 0,
+      unread: c.unread || 0,
+      raw: c
+    })
+  })
+  
+  // 2. 回复我的
+  replies.value.forEach(r => {
+    list.push({
+      id: `reply-${r.id}`,
+      type: 'reply',
+      avatar: r.replyUserAvatar,
+      title: r.replyUserName,
+      subtitle: r.content,
+      time: formatTime(r.createTime),
+      timestamp: r.createTime ? new Date(r.createTime).getTime() : 0,
+      unread: 0,
+      raw: r
+    })
+  })
+  
+  // 3. 收到的赞
+  likes.value.forEach(l => {
+    list.push({
+      id: `like-${l.commentId}`,
+      type: 'like',
+      avatar: l.likers?.[0]?.avatar,
+      title: l.likers?.[0]?.nickname + (l.likeCount > 1 ? ` 等${l.likeCount}人` : ''),
+      subtitle: `赞了你的评论: ${l.commentContent}`,
+      time: formatTime(l.latestLikeTime),
+      timestamp: l.latestLikeTime ? new Date(l.latestLikeTime).getTime() : 0,
+      unread: 0,
+      raw: l
+    })
+  })
+  
+  // 4. 系统通知
+  systemNotifications.value.forEach(n => {
+    list.push({
+      id: `system-${n.id}`,
+      type: 'system',
+      avatar: null,
+      title: n.title,
+      subtitle: n.content,
+      time: n.time,
+      timestamp: n.rawTime ? new Date(n.rawTime).getTime() : 0,
+      unread: n.read ? 0 : 1,
+      raw: n
+    })
+  })
+  
+  // 按时间倒序排列
+  return list.sort((a, b) => b.timestamp - a.timestamp)
+})
+
+// 搜索过滤
+const filteredList = computed(() => {
+  if (!searchKeyword.value) return unifiedList.value
+  const kw = searchKeyword.value.toLowerCase()
+  return unifiedList.value.filter(item => 
+    item.title?.toLowerCase().includes(kw) || 
+    item.subtitle?.toLowerCase().includes(kw)
   )
 })
 
-// 格式化时间
+// ============= 工具方法 =============
 const formatTime = (timeStr) => {
   if (!timeStr) return ''
   const date = new Date(timeStr)
@@ -94,9 +152,27 @@ const formatTime = (timeStr) => {
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
-// ============= 我的消息方法 =============
+const getAvatarUrl = (avatar, name) => {
+  if (avatar) return avatar
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || 'default')}`
+}
+
+// ============= 数据加载 =============
+const loadAllData = async () => {
+  loadingList.value = true
+  try {
+    await Promise.all([
+      loadConversations(),
+      loadReplies(),
+      loadLikes(),
+      loadSystemNotifications()
+    ])
+  } finally {
+    loadingList.value = false
+  }
+}
+
 const loadConversations = async () => {
-  loadingConversations.value = true
   try {
     const res = await getConversations()
     conversations.value = res.map(c => ({
@@ -109,19 +185,15 @@ const loadConversations = async () => {
       rawTime: c.lastTime,
       unread: c.unreadCount || 0
     }))
-    // 加载所有会话用户的在线状态
     if (conversations.value.length > 0) {
       const userIds = conversations.value.map(c => c.userId)
       await fetchOnlineStatus(userIds)
     }
   } catch (error) {
     console.error('加载会话失败', error)
-  } finally {
-    loadingConversations.value = false
   }
 }
 
-// 获取用户在线状态
 const fetchOnlineStatus = async (userIds) => {
   if (!userIds || userIds.length === 0) return
   try {
@@ -134,15 +206,57 @@ const fetchOnlineStatus = async (userIds) => {
   }
 }
 
-const selectConversation = async (conv) => {
-  selectedConversation.value = conv
+const loadReplies = async () => {
+  try {
+    const res = await getRepliesForMe({ page: 1, size: 50 })
+    replies.value = res.records || []
+  } catch (error) {
+    console.error('加载回复失败', error)
+  }
+}
+
+const loadLikes = async () => {
+  try {
+    const res = await getLikesForMe({ page: 1, size: 50 })
+    likes.value = res.records || []
+  } catch (error) {
+    console.error('加载点赞失败', error)
+  }
+}
+
+const loadSystemNotifications = async () => {
+  const sysTypes = ['RECIPE_APPROVED', 'RECIPE_REJECTED', 'COMMENT_DELETED']
+  systemNotifications.value = notificationStore.notifications
+    .filter(n => sysTypes.includes(n.type))
+    .map(n => ({
+      id: n.id,
+      type: n.type,
+      title: n.title,
+      content: n.content,
+      relatedId: n.relatedId,
+      time: formatTime(n.receivedAt),
+      rawTime: n.receivedAt,
+      read: n.read
+    }))
+}
+
+// ============= 选择消息项 =============
+const selectItem = async (item) => {
+  selectedItem.value = item
   mobileView.value = 'detail'
-  notificationStore.setCurrentChatUser(conv.userId)
-  // 获取该用户的在线状态
-  fetchOnlineStatus([conv.userId])
-  await loadMessages(conv.userId)
-  if (conv.unread > 0) {
-    markRead(conv.userId).then(() => conv.unread = 0).catch(e => console.error(e))
+  
+  if (item.type === 'message') {
+    notificationStore.setCurrentChatUser(item.userId)
+    fetchOnlineStatus([item.userId])
+    await loadMessages(item.userId)
+    if (item.unread > 0) {
+      markRead(item.userId).then(() => {
+        const conv = conversations.value.find(c => c.userId === item.userId)
+        if (conv) conv.unread = 0
+      }).catch(e => console.error(e))
+    }
+  } else if (item.type === 'like') {
+    await loadLikeDetail(item.raw)
   }
 }
 
@@ -169,17 +283,30 @@ const loadMessages = async (userId) => {
   }
 }
 
+const loadLikeDetail = async (like) => {
+  loadingLikeDetail.value = true
+  try {
+    const res = await getLikeDetail(like.commentId, { page: 1, size: 50 })
+    likeDetail.value = res.records || []
+  } catch (error) {
+    console.error('加载点赞详情失败', error)
+  } finally {
+    loadingLikeDetail.value = false
+  }
+}
+
 const scrollToBottom = () => {
   if (messagesContainer.value) {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
   }
 }
 
+// ============= 发送消息 =============
 const handleSendMessage = async () => {
-  if (!newMessage.value.trim() || !selectedConversation.value) return
+  if (!newMessage.value.trim() || !selectedItem.value || selectedItem.value.type !== 'message') return
   
   const content = newMessage.value
-  const receiverId = selectedConversation.value.userId
+  const receiverId = selectedItem.value.userId
   
   const tempMsg = {
     id: Date.now(),
@@ -198,13 +325,11 @@ const handleSendMessage = async () => {
   try {
     await apiSendMessage({ receiverId, content })
     reactiveMsg.status = 'success'
-    const convIndex = conversations.value.findIndex(c => c.userId === receiverId)
-    if (convIndex > -1) {
-      const conv = conversations.value[convIndex]
+    const conv = conversations.value.find(c => c.userId === receiverId)
+    if (conv) {
       conv.lastMessage = content
       conv.time = '刚刚'
-      conversations.value.splice(convIndex, 1)
-      conversations.value.unshift(conv)
+      conv.rawTime = new Date().toISOString()
     }
   } catch (error) {
     reactiveMsg.status = 'fail'
@@ -212,120 +337,17 @@ const handleSendMessage = async () => {
   }
 }
 
-// ============= 我的评论方法 =============
-const loadMyComments = async () => {
-  loadingMyComments.value = true
-  try {
-    const res = await getMyComments({ page: 1, size: 50 })
-    myComments.value = res.records || []
-  } catch (error) {
-    console.error('加载我的评论失败', error)
-  } finally {
-    loadingMyComments.value = false
+// ============= 返回列表 =============
+const backToList = () => {
+  if (mobileView.value === 'detail') {
+    mobileView.value = 'list'
+    selectedItem.value = null
+    notificationStore.clearCurrentChatUser()
+    likeDetail.value = []
   }
 }
 
-const toggleSelectMode = () => {
-  isSelectMode.value = !isSelectMode.value
-  if (!isSelectMode.value) {
-    selectedCommentIds.value = []
-  }
-}
-
-const toggleSelectComment = (id) => {
-  const index = selectedCommentIds.value.indexOf(id)
-  if (index > -1) {
-    selectedCommentIds.value.splice(index, 1)
-  } else {
-    selectedCommentIds.value.push(id)
-  }
-}
-
-const selectAllComments = () => {
-  if (selectedCommentIds.value.length === myComments.value.length) {
-    selectedCommentIds.value = []
-  } else {
-    selectedCommentIds.value = myComments.value.map(c => c.id)
-  }
-}
-
-const handleDeleteComments = async () => {
-  if (selectedCommentIds.value.length === 0) return
-  try {
-    await deleteMyComments(selectedCommentIds.value)
-    showToast('删除成功', 'success')
-    selectedCommentIds.value = []
-    isSelectMode.value = false
-    loadMyComments()
-  } catch (error) {
-    showToast(error.message || '删除失败', 'error')
-  }
-}
-
-// ============= 回复我的方法 =============
-const loadReplies = async () => {
-  loadingReplies.value = true
-  try {
-    const res = await getRepliesForMe({ page: 1, size: 50 })
-    replies.value = res.records || []
-  } catch (error) {
-    console.error('加载回复失败', error)
-  } finally {
-    loadingReplies.value = false
-  }
-}
-
-// ============= 收到的赞方法 =============
-const loadLikes = async () => {
-  loadingLikes.value = true
-  try {
-    const res = await getLikesForMe({ page: 1, size: 50 })
-    likes.value = res.records || []
-  } catch (error) {
-    console.error('加载点赞失败', error)
-  } finally {
-    loadingLikes.value = false
-  }
-}
-
-const openLikeDetail = async (like) => {
-  selectedLike.value = like
-  mobileView.value = 'detail'
-  loadingLikeDetail.value = true
-  try {
-    const res = await getLikeDetail(like.commentId, { page: 1, size: 50 })
-    likeDetail.value = res.records || []
-  } catch (error) {
-    console.error('加载点赞详情失败', error)
-  } finally {
-    loadingLikeDetail.value = false
-  }
-}
-
-const closeLikeDetail = () => {
-  selectedLike.value = null
-  likeDetail.value = []
-}
-
-// ============= 系统通知方法 =============
-const loadSystemNotifications = async () => {
-  loadingSystem.value = true
-  // 从 notificationStore 获取系统通知
-  const sysTypes = ['RECIPE_APPROVED', 'RECIPE_REJECTED', 'COMMENT_DELETED']
-  systemNotifications.value = notificationStore.notifications
-    .filter(n => sysTypes.includes(n.type))
-    .map(n => ({
-      id: n.id,
-      type: n.type,
-      title: n.title,
-      content: n.content,
-      relatedId: n.relatedId,
-      time: formatTime(n.receivedAt),
-      read: n.read
-    }))
-  loadingSystem.value = false
-}
-
+// ============= 系统通知辅助函数 =============
 const getSystemIcon = (type) => {
   const icons = {
     'RECIPE_APPROVED': CheckCircle,
@@ -344,63 +366,25 @@ const getSystemColor = (type) => {
   return colors[type] || 'text-gray-500 bg-gray-50'
 }
 
-// ============= 导航切换 =============
-const selectNav = (item) => {
-  activeNav.value = item.id
-  mobileView.value = 'list'
-  selectedConversation.value = null
-  selectedLike.value = null
-  isSelectMode.value = false
-  selectedCommentIds.value = []
-  
-  if (item.id === 'messages') {
-    loadConversations()
-  } else if (item.id === 'myComments') {
-    loadMyComments()
-  } else if (item.id === 'replies') {
-    loadReplies()
-  } else if (item.id === 'likes') {
-    loadLikes()
-  } else if (item.id === 'system') {
-    loadSystemNotifications()
-  }
-}
-
-const backToList = () => {
-  if (selectedLike.value) {
-    selectedLike.value = null
-    likeDetail.value = []
-    return
-  }
-  if (mobileView.value === 'detail') {
-    mobileView.value = 'list'
-    selectedConversation.value = null
-    notificationStore.clearCurrentChatUser()
-  } else if (mobileView.value === 'list') {
-    mobileView.value = 'nav'
-  }
-}
-
-// 监听新消息
+// ============= 监听新消息 =============
 watch(() => notificationStore.latestNotification, async (notification) => {
   if (!notification || notification.type !== 'NEW_MESSAGE') return
   
   const senderId = notification.senderId
-  const convIndex = conversations.value.findIndex(c => c.userId === senderId)
-  if (convIndex > -1) {
-    const conv = conversations.value[convIndex]
+  const conv = conversations.value.find(c => c.userId === senderId)
+  
+  if (conv) {
     conv.lastMessage = notification.content
     conv.time = '刚刚'
-    if (!selectedConversation.value || selectedConversation.value.userId !== senderId) {
+    conv.rawTime = new Date().toISOString()
+    if (!selectedItem.value || selectedItem.value.type !== 'message' || selectedItem.value.userId !== senderId) {
       conv.unread = (conv.unread || 0) + 1
     }
-    conversations.value.splice(convIndex, 1)
-    conversations.value.unshift(conv)
   } else {
     await loadConversations()
   }
   
-  if (selectedConversation.value && selectedConversation.value.userId === senderId) {
+  if (selectedItem.value && selectedItem.value.type === 'message' && selectedItem.value.userId === senderId) {
     messages.value.push({
       id: Date.now(),
       senderId: senderId,
@@ -415,26 +399,24 @@ watch(() => notificationStore.latestNotification, async (notification) => {
   }
 })
 
+// ============= 生命周期 =============
 onMounted(async () => {
   if (!userStore.user) {
     router.push('/login')
     return
   }
-  await loadConversations()
+  await loadAllData()
   
-  // 监听用户在线状态变化事件（实时更新）
   window.addEventListener('admin-user-status', handleUserStatusChange)
   
-  // 处理从通知跳转过来的情况
   const chatWith = route.query.chatWith
   const chatName = route.query.chatName
   if (chatWith) {
-    // 查找是否已有该用户的会话
     const existingConv = conversations.value.find(c => c.userId == chatWith)
     if (existingConv) {
-      selectConversation(existingConv)
+      const item = unifiedList.value.find(i => i.type === 'message' && i.userId == chatWith)
+      if (item) selectItem(item)
     } else {
-      // 创建新的临时会话
       const newConv = {
         id: parseInt(chatWith),
         userId: parseInt(chatWith),
@@ -442,493 +424,326 @@ onMounted(async () => {
         avatar: null,
         lastMessage: '',
         time: '',
+        rawTime: new Date().toISOString(),
         unread: 0
       }
       conversations.value.unshift(newConv)
-      selectConversation(newConv)
+      await nextTick()
+      const item = unifiedList.value.find(i => i.type === 'message' && i.userId == chatWith)
+      if (item) selectItem(item)
     }
-    // 清理 URL 参数
     router.replace({ path: '/messages' })
   }
 })
 
 onUnmounted(() => {
   notificationStore.clearCurrentChatUser()
-  // 清理事件监听器
   window.removeEventListener('admin-user-status', handleUserStatusChange)
 })
 
-// 处理用户状态变化事件（带防抖避免页面刷新闪烁）
 let statusDebounceTimer = null
 const handleUserStatusChange = (event) => {
   const { type, relatedId } = event.detail
   if (!relatedId) return
   
-  // 清除之前的定时器
   if (statusDebounceTimer) {
     clearTimeout(statusDebounceTimer)
   }
   
-  // 300ms 防抖，避免页面刷新时先离线再上线的闪烁
   statusDebounceTimer = setTimeout(() => {
     onlineStatus.value[relatedId] = type === 'USER_ONLINE'
   }, 300)
 }
-
-// 获取头像显示
-const getAvatarUrl = (avatar, name) => {
-  if (avatar) return avatar
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || 'default')}`
-}
 </script>
 
 <template>
-  <div class="min-h-[calc(100vh-64px)] py-6">
-    <div class="max-w-6xl mx-auto px-4">
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex h-[calc(100vh-64px-48px)]">
+  <div class="min-h-[calc(100vh-64px)] py-4">
+    <div class="max-w-4xl mx-auto px-4">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex h-[calc(100vh-64px-32px)]">
         
-        <!-- 左侧导航栏 -->
+        <!-- 左侧统一消息列表 -->
         <div :class="[
-          'border-r border-gray-200 flex-shrink-0 flex flex-col',
-          'w-full md:w-48',
-          mobileView === 'nav' ? 'flex' : 'hidden md:flex'
+          'border-r border-gray-200 flex-shrink-0 flex flex-col bg-gray-50',
+          'w-full md:w-80',
+          selectedItem && mobileView === 'detail' ? 'hidden md:flex' : 'flex'
         ]">
-          <!-- Logo -->
-          <div class="p-4 border-b border-gray-100">
-            <span class="font-bold text-gray-800">信息中心</span>
+          <!-- 头部 -->
+          <div class="p-3 bg-white border-b border-gray-100">
+            <div class="flex items-center justify-between mb-3">
+              <span class="font-bold text-gray-800 text-lg">消息</span>
+              <span class="text-xs text-gray-400">{{ filteredList.length }} 条消息</span>
+            </div>
+            <div class="relative">
+              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input 
+                v-model="searchKeyword"
+                type="text" 
+                placeholder="搜索消息..." 
+                class="w-full pl-9 pr-3 py-2 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:bg-white transition"
+              >
+            </div>
           </div>
-
-          <!-- 导航菜单 -->
-          <nav class="flex-1 p-2 space-y-0.5 overflow-y-auto">
-            <button
-              v-for="item in navItems"
+          
+          <!-- 消息列表 -->
+          <div class="flex-1 overflow-y-auto">
+            <div v-if="loadingList" class="flex justify-center py-8">
+              <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+            </div>
+            <div v-else-if="filteredList.length === 0" class="text-center text-gray-400 py-12 text-sm">
+              <Mail class="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>暂无消息</p>
+            </div>
+            <div 
+              v-else
+              v-for="item in filteredList" 
               :key="item.id"
-              @click="selectNav(item)"
+              @click="selectItem(item)"
               :class="[
-                'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all',
-                activeNav === item.id
-                  ? 'bg-orange-500 text-white font-medium'
-                  : 'text-gray-600 hover:bg-orange-50 hover:text-orange-600'
+                'flex items-center gap-3 px-3 py-3 cursor-pointer transition border-b border-gray-100 bg-white hover:bg-gray-50',
+                selectedItem?.id === item.id ? 'bg-blue-50 hover:bg-blue-50' : ''
               ]"
             >
-              <component :is="item.icon" class="w-4 h-4" />
-              {{ item.name }}
-            </button>
-          </nav>
-        </div>
-
-        <!-- 中间内容区 -->
-        <div :class="[
-          'flex-1 flex flex-col min-w-0',
-          mobileView === 'list' || mobileView === 'detail' ? 'flex' : 'hidden md:flex'
-        ]">
-          
-          <!-- ========== 我的消息 ========== -->
-          <template v-if="activeNav === 'messages'">
-            <div class="flex h-full">
-              <!-- 会话列表 -->
-              <div :class="[
-                'border-r border-gray-100 flex flex-col bg-white',
-                'w-full md:w-72',
-                selectedConversation && mobileView === 'detail' ? 'hidden md:flex' : 'flex'
-              ]">
-                <div class="p-3 border-b border-gray-100">
-                  <div class="flex items-center gap-2 mb-2">
-                    <button @click="backToList" class="md:hidden p-1 hover:bg-gray-100 rounded">
-                      <ArrowLeft class="w-4 h-4 text-gray-600" />
-                    </button>
-                    <span class="text-sm font-medium text-gray-700">最近消息</span>
-                  </div>
-                  <div class="relative">
-                    <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input 
-                      v-model="searchKeyword"
-                      type="text" 
-                      placeholder="搜索联系人..." 
-                      class="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-300"
-                    >
-                  </div>
-                </div>
-                <div class="flex-1 overflow-y-auto">
-                  <div v-if="loadingConversations" class="flex justify-center py-8">
-                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                  </div>
-                  <div v-else-if="filteredConversations.length === 0" class="text-center text-gray-400 py-8 text-sm">
-                    暂无消息
-                  </div>
-                  <div 
-                    v-else
-                    v-for="conv in filteredConversations" 
-                    :key="conv.id"
-                    @click="selectConversation(conv)"
-                    :class="[
-                      'flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition border-b border-gray-50',
-                      selectedConversation?.userId === conv.userId ? 'bg-blue-50' : 'hover:bg-gray-50'
-                    ]"
-                  >
-                    <div class="relative flex-shrink-0">
-                      <img 
-                        :src="getAvatarUrl(conv.avatar, conv.nickname)" 
-                        class="w-10 h-10 rounded-full object-cover bg-gray-200"
-                      >
-                      <div v-if="conv.unread > 0" class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
-                        {{ conv.unread > 9 ? '9+' : conv.unread }}
-                      </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center justify-between">
-                        <span class="font-medium text-gray-800 text-sm truncate">{{ conv.nickname }}</span>
-                        <span class="text-[10px] text-gray-400">{{ conv.time }}</span>
-                      </div>
-                      <p class="text-xs text-gray-500 truncate">{{ conv.lastMessage }}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 聊天区域 -->
-              <div :class="[
-                'flex-1 flex flex-col min-w-0',
-                !selectedConversation && mobileView !== 'detail' ? 'hidden md:flex' : 'flex'
-              ]">
-                <div v-if="!selectedConversation" class="flex-1 flex flex-col items-center justify-center text-gray-400">
-                  <div class="w-32 h-32 mb-4">
-                    <svg viewBox="0 0 200 200" class="w-full h-full opacity-60">
-                      <circle cx="100" cy="80" r="40" fill="#e5e7eb"/>
-                      <ellipse cx="100" cy="160" rx="60" ry="30" fill="#e5e7eb"/>
-                      <text x="100" y="85" text-anchor="middle" fill="#9ca3af" font-size="20">💬</text>
-                    </svg>
-                  </div>
-                  <p class="text-base font-medium mb-1">选择一个对话</p>
-                  <p class="text-sm">开始与好友聊天吧 ˙ᵕ˙</p>
-                </div>
-                <template v-else>
-                  <!-- 聊天头部 -->
-                  <div class="flex items-center gap-2.5 px-4 py-3 bg-white border-b border-gray-100">
-                    <button @click="backToList" class="md:hidden p-1.5 hover:bg-gray-100 rounded">
-                      <ArrowLeft class="w-4 h-4 text-gray-600" />
-                    </button>
-                    <img 
-                      :src="getAvatarUrl(selectedConversation.avatar, selectedConversation.nickname)" 
-                      class="w-9 h-9 rounded-full object-cover bg-gray-200"
-                    >
-                    <div class="flex-1">
-                      <div class="font-medium text-gray-800 text-sm">{{ selectedConversation.nickname }}</div>
-                      <div :class="[
-                        'text-[10px] flex items-center gap-1',
-                        onlineStatus[selectedConversation.userId] ? 'text-green-500' : 'text-gray-400'
-                      ]">
-                        <div :class="[
-                          'w-1.5 h-1.5 rounded-full',
-                          onlineStatus[selectedConversation.userId] ? 'bg-green-500' : 'bg-gray-300'
-                        ]"></div>
-                        {{ onlineStatus[selectedConversation.userId] ? '在线' : '离线' }}
-                      </div>
-                    </div>
-                  </div>
-                  <!-- 消息列表 -->
-                  <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-3">
-                    <div v-if="loadingMessages" class="flex justify-center py-4">
-                      <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400"></div>
-                    </div>
-                    <div v-else-if="messages.length === 0" class="text-center text-gray-400 py-10 text-sm">
-                      暂无消息，打个招呼吧！
-                    </div>
-                    <div v-for="msg in messages" :key="msg.id" :class="['flex', msg.isMine ? 'justify-end' : 'justify-start']">
-                      <!-- 对方头像 -->
-                      <img 
-                        v-if="!msg.isMine" 
-                        :src="getAvatarUrl(selectedConversation.avatar, selectedConversation.nickname)" 
-                        class="w-8 h-8 rounded-full object-cover bg-gray-200 mr-2 flex-shrink-0 self-end mb-4"
-                      >
-                      <div :class="['max-w-[70%] flex flex-col', msg.isMine ? 'items-end' : 'items-start']">
-                        <div class="flex items-center gap-1.5">
-                          <div v-if="msg.isMine && msg.status === 'fail'" class="text-red-500"><AlertCircle class="w-3.5 h-3.5" /></div>
-                          <div :class="['px-3 py-2 rounded-2xl text-sm', msg.isMine ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm border border-gray-100']">
-                            {{ msg.content }}
-                          </div>
-                        </div>
-                        <div class="text-[10px] mt-1 text-gray-400">{{ msg.time }}</div>
-                      </div>
-                      <!-- 我的头像 -->
-                      <img 
-                        v-if="msg.isMine" 
-                        :src="getAvatarUrl(userStore.user?.avatar, userStore.user?.nickname || userStore.user?.username)" 
-                        class="w-8 h-8 rounded-full object-cover bg-gray-200 ml-2 flex-shrink-0 self-end mb-4"
-                      >
-                    </div>
-                  </div>
-                  <!-- 输入框 -->
-                  <div class="p-3 bg-white border-t border-gray-100">
-                    <div class="flex items-center gap-2">
-                      <input 
-                        v-model="newMessage"
-                        placeholder="请输入消息内容" 
-                        class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-300"
-                        @keydown.enter.prevent="handleSendMessage"
-                      >
-                      <button 
-                        @click="handleSendMessage"
-                        :disabled="!newMessage.trim()"
-                        :class="['px-4 py-2 rounded-lg text-sm font-medium transition', newMessage.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed']"
-                      >发送</button>
-                    </div>
+              <!-- 头像 -->
+              <div class="relative flex-shrink-0">
+                <template v-if="item.type === 'system'">
+                  <div :class="['w-11 h-11 rounded-full flex items-center justify-center', getSystemColor(item.raw?.type)]">
+                    <component :is="getSystemIcon(item.raw?.type)" class="w-5 h-5" />
                   </div>
                 </template>
+                <template v-else>
+                  <img 
+                    :src="getAvatarUrl(item.avatar, item.title)" 
+                    class="w-11 h-11 rounded-full object-cover bg-gray-200"
+                  >
+                </template>
+                <!-- 未读红点 -->
+                <div 
+                  v-if="item.unread > 0" 
+                  class="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold px-1"
+                >
+                  {{ item.unread > 99 ? '99+' : item.unread }}
+                </div>
+                <!-- 在线状态（仅私信） -->
+                <div 
+                  v-if="item.type === 'message' && onlineStatus[item.userId]" 
+                  class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"
+                ></div>
+              </div>
+              
+              <!-- 内容 -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-0.5">
+                  <!-- 类型标签 -->
+                  <span :class="['text-[10px] px-1.5 py-0.5 rounded text-white font-medium', typeConfig[item.type].color]">
+                    {{ typeConfig[item.type].label }}
+                  </span>
+                  <span class="font-medium text-gray-800 text-sm truncate flex-1">{{ item.title }}</span>
+                </div>
+                <p class="text-xs text-gray-500 truncate">{{ item.subtitle }}</p>
+              </div>
+              
+              <!-- 时间 -->
+              <div class="flex-shrink-0 text-right">
+                <span class="text-[10px] text-gray-400">{{ item.time }}</span>
               </div>
             </div>
-          </template>
+          </div>
+        </div>
 
-          <!-- ========== 我的评论 ========== -->
-          <template v-else-if="activeNav === 'myComments'">
-            <div class="flex-1 flex flex-col">
-              <div class="p-4 border-b border-gray-100 bg-white flex items-center justify-between">
-                <h3 class="font-medium text-gray-800">我的评论</h3>
-                <div class="flex items-center gap-2">
-                  <button 
-                    v-if="isSelectMode && selectedCommentIds.length > 0"
-                    @click="handleDeleteComments"
-                    class="px-3 py-1.5 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600"
-                  >删除 ({{ selectedCommentIds.length }})</button>
-                  <button 
-                    v-if="isSelectMode"
-                    @click="selectAllComments"
-                    class="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200"
-                  >{{ selectedCommentIds.length === myComments.length ? '取消全选' : '全选' }}</button>
-                  <button 
-                    @click="toggleSelectMode"
-                    :class="['px-3 py-1.5 text-sm rounded-lg', isSelectMode ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']"
-                  >{{ isSelectMode ? '取消' : '管理' }}</button>
-                </div>
-              </div>
-              <div class="flex-1 overflow-y-auto">
-                <div v-if="loadingMyComments" class="flex justify-center py-10">
-                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                </div>
-                <div v-else-if="myComments.length === 0" class="text-center text-gray-400 py-20">
-                  <Edit3 class="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p>暂无评论</p>
-                </div>
-                <div v-else class="divide-y divide-gray-100">
-                  <div v-for="comment in myComments" :key="comment.id" class="p-4 bg-white hover:bg-gray-50 transition">
-                    <div class="flex items-start gap-3">
-                      <div 
-                        v-if="isSelectMode"
-                        @click="toggleSelectComment(comment.id)"
-                        :class="['w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer flex-shrink-0 mt-1', selectedCommentIds.includes(comment.id) ? 'bg-blue-500 border-blue-500' : 'border-gray-300']"
-                      >
-                        <Check v-if="selectedCommentIds.includes(comment.id)" class="w-3 h-3 text-white" />
-                      </div>
-                      <img 
-                        v-if="comment.recipeCoverImage"
-                        :src="comment.recipeCoverImage" 
-                        class="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                      >
-                      <div v-else class="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                        <ChefHat class="w-6 h-6 text-gray-400" />
-                      </div>
-                      <div class="flex-1 min-w-0">
-                        <div class="text-sm text-gray-500 mb-1">
-                          <template v-if="comment.parentId">
-                            回复了 <span class="text-orange-500">{{ comment.replyToUserName || '用户' }}</span> 在 
-                          </template>
-                          <template v-else>
-                            评论于 
-                          </template>
-                          <span class="text-blue-500 cursor-pointer hover:underline" @click="router.push(`/recipe/${comment.recipeId}`)">{{ comment.recipeTitle }}</span>
-                        </div>
-                        <p v-if="comment.parentId && comment.parentContent" class="text-xs text-gray-400 mb-1 line-clamp-1">
-                          原评论：{{ comment.parentContent }}
-                        </p>
-                        <p class="text-gray-800 text-sm line-clamp-2">{{ comment.content }}</p>
-                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
-                          <span>{{ formatTime(comment.createTime) }}</span>
-                          <span class="flex items-center gap-1"><Heart class="w-3 h-3" /> {{ comment.likeCount }}</span>
-                          <span v-if="!comment.parentId" class="flex items-center gap-1"><MessageCircle class="w-3 h-3" /> {{ comment.replyCount }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <!-- 右侧内容区 -->
+        <div :class="[
+          'flex-1 flex flex-col min-w-0 bg-gray-50',
+          !selectedItem && mobileView !== 'detail' ? 'hidden md:flex' : 'flex'
+        ]">
+          <!-- 未选中状态 -->
+          <div v-if="!selectedItem" class="flex-1 flex flex-col items-center justify-center text-gray-400">
+            <div class="w-24 h-24 mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+              <MessageSquare class="w-10 h-10 text-gray-300" />
             </div>
-          </template>
-
-          <!-- ========== 回复我的 ========== -->
-          <template v-else-if="activeNav === 'replies'">
-            <div class="flex-1 overflow-y-auto">
-              <div class="p-4 border-b border-gray-100 bg-white">
-                <h3 class="font-medium text-gray-800">回复我的</h3>
-              </div>
-              <div v-if="loadingReplies" class="flex justify-center py-10">
-                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-              </div>
-              <div v-else-if="replies.length === 0" class="text-center text-gray-400 py-20">
-                <MessageCircle class="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>暂无回复</p>
-              </div>
-              <div v-else class="divide-y divide-gray-100">
-                <div v-for="reply in replies" :key="reply.id" class="p-4 bg-white hover:bg-gray-50 transition">
-                  <div class="flex items-start gap-3">
-                    <img 
-                      :src="getAvatarUrl(reply.replyUserAvatar, reply.replyUserName)" 
-                      class="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                    >
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 mb-1">
-                        <span class="font-medium text-gray-800">{{ reply.replyUserName }}</span>
-                        <span class="text-xs text-gray-400">回复了我的评论</span>
-                      </div>
-                      <p class="text-sm text-gray-700 mb-2">{{ reply.content }}</p>
-                      <div class="text-xs text-gray-400 bg-gray-50 px-3 py-2 rounded-lg">
-                        <span class="text-gray-500">我的评论：</span>{{ reply.myCommentContent }}
-                      </div>
-                      <div class="flex items-center justify-between mt-2">
-                        <span class="text-xs text-gray-400">{{ formatTime(reply.createTime) }}</span>
-                        <button @click="router.push(`/recipe/${reply.recipeId}`)" class="text-xs text-blue-500 hover:text-blue-600">查看原文 →</button>
-                      </div>
-                    </div>
-                  </div>
+            <p class="text-base font-medium mb-1">选择一个对话</p>
+            <p class="text-sm">开始查看消息详情</p>
+          </div>
+          
+          <!-- ===== 私信聊天界面 ===== -->
+          <template v-else-if="selectedItem.type === 'message'">
+            <!-- 聊天头部 -->
+            <div class="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100">
+              <button @click="backToList" class="md:hidden p-1.5 hover:bg-gray-100 rounded-lg transition">
+                <ArrowLeft class="w-5 h-5 text-gray-600" />
+              </button>
+              <img 
+                :src="getAvatarUrl(selectedItem.avatar, selectedItem.title)" 
+                class="w-10 h-10 rounded-full object-cover bg-gray-200"
+              >
+              <div class="flex-1">
+                <div class="font-medium text-gray-800">{{ selectedItem.title }}</div>
+                <div :class="[
+                  'text-xs flex items-center gap-1',
+                  onlineStatus[selectedItem.userId] ? 'text-green-500' : 'text-gray-400'
+                ]">
+                  <div :class="[
+                    'w-1.5 h-1.5 rounded-full',
+                    onlineStatus[selectedItem.userId] ? 'bg-green-500' : 'bg-gray-300'
+                  ]"></div>
+                  {{ onlineStatus[selectedItem.userId] ? '在线' : '离线' }}
                 </div>
               </div>
             </div>
-          </template>
-
-          <!-- ========== 收到的赞 ========== -->
-          <template v-else-if="activeNav === 'likes'">
-            <div class="flex h-full">
-              <!-- 点赞列表 -->
-              <div :class="['flex-1 flex flex-col', selectedLike ? 'hidden md:flex md:w-1/2 md:border-r md:border-gray-100' : 'flex']">
-                <div class="p-4 border-b border-gray-100 bg-white">
-                  <h3 class="font-medium text-gray-800">收到的赞</h3>
-                </div>
-                <div class="flex-1 overflow-y-auto">
-                  <div v-if="loadingLikes" class="flex justify-center py-10">
-                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                  </div>
-                  <div v-else-if="likes.length === 0" class="text-center text-gray-400 py-20">
-                    <Heart class="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p>暂无点赞</p>
-                  </div>
-                  <div v-else class="divide-y divide-gray-100">
-                    <div 
-                      v-for="like in likes" 
-                      :key="like.commentId" 
-                      @click="openLikeDetail(like)"
-                      :class="['p-4 bg-white hover:bg-gray-50 transition cursor-pointer', selectedLike?.commentId === like.commentId ? 'bg-blue-50' : '']"
-                    >
-                      <div class="flex items-start gap-3">
-                        <!-- 点赞者头像组 -->
-                        <div class="flex -space-x-2 flex-shrink-0">
-                          <img 
-                            v-for="(liker, idx) in (like.likers || []).slice(0, 3)" 
-                            :key="liker.userId"
-                            :src="getAvatarUrl(liker.avatar, liker.nickname)" 
-                            :class="['w-8 h-8 rounded-full border-2 border-white object-cover', idx > 0 ? '-ml-2' : '']"
-                          >
-                        </div>
-                        <div class="flex-1 min-w-0">
-                          <div class="flex items-center gap-1 flex-wrap mb-1">
-                            <span class="font-medium text-gray-800 text-sm">{{ like.likers?.[0]?.nickname }}</span>
-                            <span v-if="like.likeCount > 1" class="text-xs text-gray-500">
-                              等{{ like.likeCount }}人
-                            </span>
-                            <span class="text-xs text-gray-400">赞了我的评论</span>
-                          </div>
-                          <p class="text-sm text-gray-600 truncate">{{ like.commentContent }}</p>
-                          <div class="flex items-center gap-2 mt-1">
-                            <span v-if="like.recipeTitle" class="text-xs text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">{{ like.recipeTitle }}</span>
-                            <span class="text-xs text-gray-400">{{ formatTime(like.latestLikeTime) }}</span>
-                          </div>
-                        </div>
-                        <ArrowRight class="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" />
-                      </div>
+            
+            <!-- 消息列表 -->
+            <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-3">
+              <div v-if="loadingMessages" class="flex justify-center py-4">
+                <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400"></div>
+              </div>
+              <div v-else-if="messages.length === 0" class="text-center text-gray-400 py-10 text-sm">
+                暂无消息，打个招呼吧！
+              </div>
+              <div v-for="msg in messages" :key="msg.id" :class="['flex', msg.isMine ? 'justify-end' : 'justify-start']">
+                <img 
+                  v-if="!msg.isMine" 
+                  :src="getAvatarUrl(selectedItem.avatar, selectedItem.title)" 
+                  class="w-8 h-8 rounded-full object-cover bg-gray-200 mr-2 flex-shrink-0 self-end mb-4"
+                >
+                <div :class="['max-w-[70%] flex flex-col', msg.isMine ? 'items-end' : 'items-start']">
+                  <div class="flex items-center gap-1.5">
+                    <div v-if="msg.isMine && msg.status === 'fail'" class="text-red-500"><AlertCircle class="w-3.5 h-3.5" /></div>
+                    <div :class="['px-3 py-2 rounded-2xl text-sm', msg.isMine ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm border border-gray-100']">
+                      {{ msg.content }}
                     </div>
                   </div>
+                  <div class="text-[10px] mt-1 text-gray-400">{{ msg.time }}</div>
+                </div>
+                <img 
+                  v-if="msg.isMine" 
+                  :src="getAvatarUrl(userStore.user?.avatar, userStore.user?.nickname || userStore.user?.username)" 
+                  class="w-8 h-8 rounded-full object-cover bg-gray-200 ml-2 flex-shrink-0 self-end mb-4"
+                >
+              </div>
+            </div>
+            
+            <!-- 输入框 -->
+            <div class="p-3 bg-white border-t border-gray-100">
+              <div class="flex items-center gap-2">
+                <input 
+                  v-model="newMessage"
+                  placeholder="请输入消息内容" 
+                  class="flex-1 px-4 py-2.5 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:bg-white transition"
+                  @keydown.enter.prevent="handleSendMessage"
+                >
+                <button 
+                  @click="handleSendMessage"
+                  :disabled="!newMessage.trim()"
+                  :class="['px-5 py-2.5 rounded-full text-sm font-medium transition', newMessage.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-200 text-gray-400 cursor-not-allowed']"
+                >发送</button>
+              </div>
+            </div>
+          </template>
+          
+          <!-- ===== 回复详情 ===== -->
+          <template v-else-if="selectedItem.type === 'reply'">
+            <div class="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100">
+              <button @click="backToList" class="md:hidden p-1.5 hover:bg-gray-100 rounded-lg transition">
+                <ArrowLeft class="w-5 h-5 text-gray-600" />
+              </button>
+              <span class="font-medium text-gray-800">回复详情</span>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4">
+              <div class="bg-white rounded-xl p-4 shadow-sm">
+                <div class="flex items-start gap-3 mb-4">
+                  <img 
+                    :src="getAvatarUrl(selectedItem.raw.replyUserAvatar, selectedItem.raw.replyUserName)" 
+                    class="w-12 h-12 rounded-full object-cover"
+                  >
+                  <div class="flex-1">
+                    <div class="font-medium text-gray-800 mb-1">{{ selectedItem.raw.replyUserName }}</div>
+                    <div class="text-xs text-gray-400">{{ formatTime(selectedItem.raw.createTime) }}</div>
+                  </div>
+                </div>
+                <p class="text-gray-700 mb-4">{{ selectedItem.raw.content }}</p>
+                <div class="bg-gray-50 rounded-lg p-3 text-sm">
+                  <span class="text-gray-500">我的评论：</span>
+                  <span class="text-gray-700">{{ selectedItem.raw.myCommentContent }}</span>
+                </div>
+                <button 
+                  @click="router.push(`/recipe/${selectedItem.raw.recipeId}`)" 
+                  class="mt-4 text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                >
+                  查看原文 <ArrowRight class="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </template>
+          
+          <!-- ===== 点赞详情 ===== -->
+          <template v-else-if="selectedItem.type === 'like'">
+            <div class="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100">
+              <button @click="backToList" class="md:hidden p-1.5 hover:bg-gray-100 rounded-lg transition">
+                <ArrowLeft class="w-5 h-5 text-gray-600" />
+              </button>
+              <span class="font-medium text-gray-800">点赞详情</span>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4">
+              <div class="bg-white rounded-xl p-4 shadow-sm mb-4">
+                <div class="text-sm text-gray-500 mb-2">我的评论</div>
+                <p class="text-gray-800">{{ selectedItem.raw.commentContent }}</p>
+                <div v-if="selectedItem.raw.recipeTitle" class="mt-3">
+                  <span class="text-xs text-gray-400">来自菜谱：</span>
+                  <span 
+                    class="text-xs text-orange-500 cursor-pointer hover:underline" 
+                    @click="router.push(`/recipe/${selectedItem.raw.recipeId}`)"
+                  >{{ selectedItem.raw.recipeTitle }}</span>
                 </div>
               </div>
-
-              <!-- 点赞详情 -->
-              <div v-if="selectedLike" :class="['flex-1 flex flex-col', mobileView === 'detail' ? 'flex' : 'hidden md:flex']">
-                <div class="p-4 border-b border-gray-100 bg-white">
-                  <div class="flex items-center gap-2">
-                    <button @click="closeLikeDetail" class="md:hidden p-1 hover:bg-gray-100 rounded">
-                      <ArrowLeft class="w-4 h-4 text-gray-600" />
-                    </button>
-                    <span class="text-sm text-gray-500">收到的赞</span>
-                    <span class="text-gray-300">></span>
-                    <span class="text-sm font-medium text-gray-800">点赞详情</span>
+              <div class="text-sm text-gray-500 mb-3">点赞的人 ({{ selectedItem.raw.likeCount }})</div>
+              <div v-if="loadingLikeDetail" class="flex justify-center py-4">
+                <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-pink-400"></div>
+              </div>
+              <div v-else class="space-y-2">
+                <div v-for="item in likeDetail" :key="item.likers?.[0]?.userId" class="flex items-center gap-3 p-3 bg-white rounded-xl">
+                  <img 
+                    :src="getAvatarUrl(item.likers?.[0]?.avatar, item.likers?.[0]?.nickname)" 
+                    class="w-10 h-10 rounded-full object-cover"
+                  >
+                  <div class="flex-1">
+                    <div class="font-medium text-gray-800 text-sm">{{ item.likers?.[0]?.nickname }}</div>
+                    <div class="text-xs text-gray-400">{{ formatTime(item.likers?.[0]?.likeTime) }}</div>
                   </div>
-                </div>
-                <div class="p-4 bg-white border-b border-gray-100">
-                  <div class="text-sm text-gray-500 mb-1">评论：</div>
-                  <p class="text-gray-800">{{ selectedLike.commentContent }}</p>
-                  <div v-if="selectedLike.recipeTitle" class="mt-2">
-                    <span class="text-xs text-gray-400">来自菜谱：</span>
-                    <span class="text-xs text-orange-500 cursor-pointer hover:underline" @click="$router.push(`/recipe/${selectedLike.recipeId}`)">{{ selectedLike.recipeTitle }}</span>
-                  </div>
-                </div>
-                <div class="flex-1 overflow-y-auto p-4 space-y-3">
-                  <div v-if="loadingLikeDetail" class="flex justify-center py-4">
-                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400"></div>
-                  </div>
-                  <div v-else v-for="item in likeDetail" :key="item.likers?.[0]?.userId" class="flex items-center gap-3 p-3 bg-white rounded-xl">
-                    <img 
-                      :src="getAvatarUrl(item.likers?.[0]?.avatar, item.likers?.[0]?.nickname)" 
-                      class="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                    >
-                    <div class="flex-1">
-                      <div class="font-medium text-gray-800 text-sm">{{ item.likers?.[0]?.nickname }}</div>
-                      <div class="text-xs text-gray-400">{{ formatTime(item.likers?.[0]?.likeTime) }}</div>
-                    </div>
-                    <span class="text-xs text-pink-500">赞了我</span>
-                  </div>
+                  <Heart class="w-4 h-4 text-pink-500 fill-pink-500" />
                 </div>
               </div>
             </div>
           </template>
-
-          <!-- ========== 系统通知 ========== -->
-          <template v-else-if="activeNav === 'system'">
-            <div class="flex-1 overflow-y-auto">
-              <div class="p-4 border-b border-gray-100 bg-white">
-                <h3 class="font-medium text-gray-800">系统通知</h3>
-              </div>
-              <div v-if="loadingSystem" class="flex justify-center py-10">
-                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-              </div>
-              <div v-else-if="systemNotifications.length === 0" class="text-center text-gray-400 py-20">
-                <Bell class="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>暂无系统通知</p>
-              </div>
-              <div v-else class="divide-y divide-gray-100">
-                <div v-for="notif in systemNotifications" :key="notif.id" 
-                     :class="['p-4 bg-white hover:bg-gray-50 transition', !notif.read ? 'bg-blue-50/30' : '']">
-                  <div class="flex items-start gap-3">
-                    <div :class="['p-2 rounded-lg flex-shrink-0', getSystemColor(notif.type)]">
-                      <component :is="getSystemIcon(notif.type)" class="w-5 h-5" />
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 mb-1">
-                        <span class="font-medium text-gray-800">{{ notif.title }}</span>
-                        <div v-if="!notif.read" class="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                      </div>
-                      <p class="text-sm text-gray-600 mb-2">{{ notif.content }}</p>
-                      <div class="flex items-center justify-between">
-                        <span class="text-xs text-gray-400">{{ notif.time }}</span>
-                        <button 
-                          v-if="notif.type === 'RECIPE_APPROVED' || notif.type === 'RECIPE_REJECTED'"
-                          @click="router.push('/profile')"
-                          class="text-xs text-blue-500 hover:text-blue-600"
-                        >查看详情 →</button>
-                      </div>
-                    </div>
+          
+          <!-- ===== 系统通知详情 ===== -->
+          <template v-else-if="selectedItem.type === 'system'">
+            <div class="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100">
+              <button @click="backToList" class="md:hidden p-1.5 hover:bg-gray-100 rounded-lg transition">
+                <ArrowLeft class="w-5 h-5 text-gray-600" />
+              </button>
+              <span class="font-medium text-gray-800">系统通知</span>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4">
+              <div class="bg-white rounded-xl p-5 shadow-sm">
+                <div class="flex items-start gap-4 mb-4">
+                  <div :class="['p-3 rounded-xl', getSystemColor(selectedItem.raw.type)]">
+                    <component :is="getSystemIcon(selectedItem.raw.type)" class="w-6 h-6" />
+                  </div>
+                  <div class="flex-1">
+                    <h3 class="font-medium text-gray-800 text-lg mb-1">{{ selectedItem.raw.title }}</h3>
+                    <div class="text-xs text-gray-400">{{ selectedItem.time }}</div>
                   </div>
                 </div>
+                <p class="text-gray-600 leading-relaxed">{{ selectedItem.raw.content }}</p>
+                <button 
+                  v-if="selectedItem.raw.type === 'RECIPE_APPROVED' || selectedItem.raw.type === 'RECIPE_REJECTED'"
+                  @click="router.push('/profile')"
+                  class="mt-4 text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                >
+                  查看详情 <ArrowRight class="w-4 h-4" />
+                </button>
               </div>
             </div>
           </template>
-
         </div>
       </div>
     </div>

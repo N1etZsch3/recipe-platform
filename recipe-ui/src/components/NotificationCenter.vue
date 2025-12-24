@@ -105,11 +105,32 @@ const formatTime = (time) => {
 const handleItemClick = (item) => {
     notificationStore.markAsRead(item.id)
     
-    // 根据类型跳转
+    // 根据类型跳转到消息中心对应分类
     if (item.type === 'NEW_MESSAGE' && item.senderId) {
-        router.push(`/messages?user=${item.senderId}`)
+        // 私信 - 跳转到消息中心私信分类
+        router.push(`/messages?type=message&chatWith=${item.senderId}`)
+    } else if (item.type === 'LIKE') {
+        // 点赞通知 - 跳转到消息中心点赞分类
+        router.push('/messages?type=like')
+    } else if (item.type === 'COMMENT') {
+        // 评论通知 - 跳转到消息中心评论分类
+        router.push('/messages?type=comment')
+    } else if (item.type === 'FOLLOW') {
+        // 关注通知 - 跳转到用户主页
+        if (item.relatedId) {
+            router.push(`/user/${item.relatedId}`)
+        } else {
+            router.push('/messages?type=system')
+        }
+    } else if (item.type === 'AUDIT_PASS' || item.type === 'AUDIT_REJECT' || item.type === 'RECIPE_APPROVED' || item.type === 'RECIPE_REJECTED' || item.type === 'COMMENT_DELETED') {
+        // 审核/系统通知 - 跳转到消息中心系统通知分类
+        router.push('/messages?type=system')
     } else if (item.recipeId) {
+        // 其他带菜谱ID的 - 跳转到菜谱详情
         router.push(`/recipe/${item.recipeId}`)
+    } else {
+        // 默认跳转到消息中心
+        router.push('/messages')
     }
     
     emit('close')

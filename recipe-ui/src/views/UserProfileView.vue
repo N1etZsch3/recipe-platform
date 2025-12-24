@@ -1,12 +1,12 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useToast } from '../components/Toast.vue'
 import { useModal } from '@/composables/useModal'
-import { getUserProfile, followUser, unfollowUser } from '@/api/social'
+import { getUserProfile, followUser, unfollowUser, getMyFavorites, getMyComments } from '@/api/social'
 import { listRecipies } from '@/api/recipe'
-import { ArrowLeft, ChefHat, UserPlus, UserMinus, UserCheck, MessageCircle } from 'lucide-vue-next'
+import { ArrowLeft, ChefHat, UserPlus, UserCheck, MessageCircle, Heart, Star, Award, Grid, Bookmark, ThumbsUp, User, MessageSquare } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,8 +17,27 @@ const { confirm } = useModal()
 const targetUserId = route.params.id
 const userProfile = ref(null)
 const recipes = ref([])
+const favorites = ref([])
+const comments = ref([])
 const loading = ref(false)
-const recipesLoading = ref(false)
+const contentLoading = ref(false)
+
+// Tab切换
+const activeTab = ref('home')
+const tabs = [
+  { key: 'home', label: '首页', icon: Grid },
+  { key: 'favorites', label: '收藏', icon: Bookmark },
+  { key: 'info', label: '资料', icon: User },
+  { key: 'comments', label: '评论', icon: MessageSquare }
+]
+
+// 统计数据
+const stats = computed(() => [
+  { label: '粉丝', value: userProfile.value?.followerCount || 0 },
+  { label: '关注', value: userProfile.value?.followingCount || 0 },
+  { label: '作品', value: recipes.value?.length || 0 },
+  { label: '获赞', value: userProfile.value?.likeCount || 0 }
+])
 
 // 加载用户信息
 const loadUserProfile = async () => {
@@ -29,48 +48,96 @@ const loadUserProfile = async () => {
   } catch (error) {
     console.error(error)
     showToast(error.message || '加载用户失败', 'error')
-    router.replace('/') // 加载失败回首页
+    router.replace('/')
   } finally {
     loading.value = false
   }
 }
 
-// 解析 JSON 格式的描述，提取 intro
+// 解析 JSON 格式的描述
 const parseDescription = (description) => {
     if (!description) return ''
     try {
         const data = JSON.parse(description)
         return data.intro || ''
     } catch {
-        // 如果不是 JSON，直接返回原文
         return description
     }
 }
 
 // 加载用户的菜谱
 const loadUserRecipes = async () => {
-  recipesLoading.value = true
+  contentLoading.value = true
   try {
-    // 假设 listRecipies 支持 authorId 参数
     const res = await listRecipies({
       page: 1,
       size: 20,
       authorId: targetUserId,
-      status: 1 // 只能看已发布的
+      status: 1
     })
     recipes.value = res.records.map(r => ({
       id: r.id,
       title: r.title,
       image: r.coverImage,
       description: parseDescription(r.description),
-      authorId: r.userId,
-      authorName: r.nickname,
-      authorAvatar: r.avatar
+      likeCount: r.likeCount || 0,
+      commentCount: r.commentCount || 0,
+      viewCount: r.viewCount || 0
     }))
   } catch (error) {
     console.error('Failed to load recipes', error)
   } finally {
-    recipesLoading.value = false
+    contentLoading.value = false
+  }
+}
+
+// 加载收藏 (只有查看自己的收藏时才可用)
+const loadFavorites = async () => {
+  contentLoading.value = true
+  try {
+    // 只能查看自己的收藏
+    if (targetUserId == userStore.user?.id) {
+      const res = await getMyFavorites({ page: 1, size: 20 })
+      favorites.value = res.records || []
+    } else {
+      favorites.value = []
+    }
+  } catch (error) {
+    console.error('Failed to load favorites', error)
+    favorites.value = []
+  } finally {
+    contentLoading.value = false
+  }
+}
+
+// 加载评论
+const loadComments = async () => {
+  contentLoading.value = true
+  try {
+    // 如果是自己的页面，可以加载评论
+    if (targetUserId == userStore.user?.id) {
+      const res = await getMyComments({ page: 1, size: 20 })
+      comments.value = res.records || []
+    } else {
+      comments.value = []
+    }
+  } catch (error) {
+    console.error('Failed to load comments', error)
+    comments.value = []
+  } finally {
+    contentLoading.value = false
+  }
+}
+
+// Tab切换处理
+const switchTab = (tabKey) => {
+  activeTab.value = tabKey
+  if (tabKey === 'home') {
+    loadUserRecipes()
+  } else if (tabKey === 'favorites') {
+    loadFavorites()
+  } else if (tabKey === 'comments') {
+    loadComments()
   }
 }
 
@@ -107,7 +174,6 @@ const handleChat = () => {
         router.push('/login')
         return
     }
-    // 跳转到私信页面，带上用户信息以直接打开与该用户的对话
     router.push({
         path: '/messages',
         query: {
@@ -117,12 +183,16 @@ const handleChat = () => {
     })
 }
 
+// 格式化时间
+const formatTime = (time) => {
+  if (!time) return ''
+  const date = new Date(time)
+  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
 
 onMounted(() => {
-  // 如果不是预览模式，且看的是自己，跳转到个人中心
   const isPreviewMode = route.query.preview === 'true'
   if (targetUserId == userStore.user?.id && !isPreviewMode) {
-      // 如果看的是自己，跳转到个人中心
       router.replace('/profile')
       return
   }
@@ -132,101 +202,122 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6 bg-orange-50/30 min-h-full">
-    <div class="max-w-4xl mx-auto">
-      <!-- 顶部返回 -->
-      <button @click="router.back()" class="flex items-center gap-1 text-gray-500 hover:text-gray-800 mb-6 transition">
-        <ArrowLeft class="w-5 h-5" /> 返回
-      </button>
+  <div class="min-h-full bg-gray-50">
+    <!-- Loading -->
+    <div v-if="loading" class="flex items-center justify-center min-h-[400px] text-gray-400">
+      加载中...
+    </div>
 
-      <div v-if="loading" class="text-center py-20 text-gray-400">
-        加载中...
+    <div v-else-if="userProfile">
+      <!-- 橙色 Header 区域 -->
+      <div class="bg-gradient-to-b from-orange-500 to-orange-400 text-white relative">
+        <!-- 返回按钮 -->
+        <button 
+          @click="router.back()" 
+          class="absolute top-4 left-4 p-2 rounded-full bg-white/20 hover:bg-white/30 transition z-10"
+        >
+          <ArrowLeft class="w-5 h-5" />
+        </button>
+
+        <!-- 统计数据 - 左2+右2分布 -->
+        <div class="max-w-4xl mx-auto px-24 flex justify-between pt-20 pb-16">
+          <!-- 左侧两个统计 -->
+          <div class="flex gap-16">
+            <div v-for="stat in stats.slice(0, 2)" :key="stat.label" class="text-center">
+              <div class="text-xs text-white/70 mb-1">{{ stat.label }}</div>
+              <div class="text-2xl font-bold">{{ stat.value }}</div>
+            </div>
+          </div>
+          <!-- 右侧两个统计 -->
+          <div class="flex gap-16">
+            <div v-for="stat in stats.slice(2, 4)" :key="stat.label" class="text-center">
+              <div class="text-xs text-white/70 mb-1">{{ stat.label }}</div>
+              <div class="text-2xl font-bold">{{ stat.value }}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div v-else-if="userProfile" class="flex flex-col gap-8">
-        <!-- 用户信息卡片 -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
-            <!-- 顶部背景图 -->
-            <div class="h-32 bg-gradient-to-r from-orange-100 to-red-50"></div>
-            
-            <div class="px-8 pb-8 flex flex-col md:flex-row items-end -mt-12 gap-6">
-                <!-- 头像 -->
-                <div class="w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden bg-white flex-shrink-0">
-                    <img v-if="userProfile.avatar" :src="userProfile.avatar" class="w-full h-full object-cover">
-                    <div v-else class="w-full h-full bg-orange-100 flex items-center justify-center text-4xl text-orange-500 font-bold">
-                        {{ userProfile.nickname?.charAt(0).toUpperCase() }}
-                    </div>
-                </div>
-
-                <!-- 信息与操作 -->
-                <div class="flex-1 min-w-0 pb-2 w-full text-center md:text-left">
-                    <h1 class="text-2xl font-bold text-gray-800 mb-1">{{ userProfile.nickname }}</h1>
-                    <p class="text-gray-500 text-sm mb-4 line-clamp-2 md:line-clamp-1">{{ userProfile.intro || '这个人很懒，什么也没写' }}</p>
-                    
-                    <div class="flex items-center justify-center md:justify-start gap-3">
-                         <button 
-                            @click="handleFollow"
-                            :class="['px-6 py-2 rounded-full font-bold shadow-sm transition flex items-center gap-2', 
-                                userProfile.isFollow 
-                                ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' 
-                                : 'bg-orange-500 text-white hover:bg-orange-600 shadow-orange-200']"
-                         >
-                            <UserCheck v-if="userProfile.isFollow" class="w-4 h-4" />
-                            <UserPlus v-else class="w-4 h-4" />
-                            {{ userProfile.isFollow ? '已关注' : '关注' }}
-                         </button>
-                         <!-- 私信入口，关注后显示 -->
-                         <button 
-                            v-if="userProfile.isFollow"
-                            @click="handleChat" 
-                            class="px-5 py-2 rounded-full bg-white border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 hover:border-orange-300 hover:text-orange-500 transition flex items-center gap-2 shadow-sm"
-                         >
-                             <MessageCircle class="w-4 h-4" />
-                             私信
-                         </button>
-                    </div>
-                </div>
+      <!-- 用户信息卡片（覆盖 header） -->
+      <div class="relative -mt-12 pb-6">
+        <div class="max-w-2xl mx-auto px-4">
+          <!-- 头像 -->
+          <div class="flex justify-center mb-4">
+            <div class="w-24 h-24 rounded-full border-4 border-white shadow-lg overflow-hidden bg-white">
+              <img v-if="userProfile.avatar" :src="userProfile.avatar" class="w-full h-full object-cover">
+              <div v-else class="w-full h-full bg-gray-200 flex items-center justify-center text-3xl text-gray-400 font-bold">
+                {{ userProfile.nickname?.charAt(0).toUpperCase() }}
+              </div>
             </div>
+          </div>
+
+          <!-- 用户名和简介 -->
+          <div class="text-center mb-6">
+            <h1 class="text-xl font-bold text-gray-800 mb-1">{{ userProfile.nickname }}</h1>
+            <p class="text-sm text-gray-500">{{ userProfile.intro || '这个人很懒，什么也没写' }}</p>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="flex justify-center gap-3">
+            <button 
+              @click="handleFollow"
+              :class="['px-6 py-2.5 rounded-lg font-medium transition flex items-center gap-2', 
+                userProfile.isFollow 
+                  ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' 
+                  : 'bg-blue-500 text-white hover:bg-blue-600']"
+            >
+              <UserCheck v-if="userProfile.isFollow" class="w-4 h-4" />
+              <UserPlus v-else class="w-4 h-4" />
+              {{ userProfile.isFollow ? '已关注' : '关注' }}
+            </button>
+            <button 
+              @click="handleChat" 
+              class="px-6 py-2.5 rounded-lg bg-white border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition flex items-center gap-2"
+            >
+              <MessageCircle class="w-4 h-4" />
+              私信
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 菜谱作品区域 -->
+      <div class="max-w-4xl mx-auto px-4 py-6">
+        <div class="flex items-center gap-2 mb-4">
+          <ChefHat class="w-5 h-5 text-orange-500" />
+          <span class="text-sm text-gray-600">发布的菜谱</span>
+          <span class="text-sm text-gray-400">{{ recipes.length }}</span>
+        </div>
+        
+        <!-- Loading -->
+        <div v-if="contentLoading" class="text-center py-12 text-gray-400">
+          加载中...
         </div>
 
-        <!-- 用户的菜谱列表 -->
-        <div>
-            <div class="flex items-center gap-2 mb-6">
-                <ChefHat class="w-6 h-6 text-orange-500" />
-                <h2 class="text-xl font-bold text-gray-800">发布的菜谱</h2>
-                <span class="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{{ recipes.length }}</span>
+        <div v-else-if="recipes.length > 0" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div 
+            v-for="recipe in recipes" 
+            :key="recipe.id"
+            @click="router.push(`/recipe/${recipe.id}`)"
+            class="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition cursor-pointer group"
+          >
+            <div class="aspect-square bg-gray-100 overflow-hidden">
+              <img :src="recipe.image" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
             </div>
+            <div class="p-3">
+              <h3 class="font-medium text-gray-800 text-sm truncate mb-1">{{ recipe.title }}</h3>
+              <p class="text-xs text-gray-400 line-clamp-1 mb-2">{{ recipe.description || '暂无描述' }}</p>
+              <div class="flex items-center gap-3 text-xs text-gray-400">
+                <span class="flex items-center gap-0.5"><Heart class="w-3 h-3" /> {{ recipe.likeCount }}</span>
+                <span class="flex items-center gap-0.5"><MessageSquare class="w-3 h-3" /> {{ recipe.commentCount }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-            <div v-if="recipesLoading" class="text-center py-10 text-gray-400">
-                加载菜谱中...
-            </div>
-            
-            <div v-else-if="recipes.length > 0" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                 <div 
-                    v-for="recipe in recipes" 
-                    :key="recipe.id"
-                    @click="router.push(`/recipe/${recipe.id}`)"
-                    class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:translate-y-[-2px] transition cursor-pointer group"
-                 >
-                    <div class="h-48 overflow-hidden bg-gray-100 relative">
-                        <img :src="recipe.image" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
-                    </div>
-                    <div class="p-4">
-                        <h3 class="font-bold text-gray-800 mb-2 truncate group-hover:text-orange-600 transition">{{ recipe.title }}</h3>
-                        <p class="text-xs text-gray-400 line-clamp-2 md:h-8">{{ recipe.description || '暂无描述' }}</p>
-                        
-                        <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
-                             <img v-if="userProfile.avatar" :src="userProfile.avatar" class="w-5 h-5 rounded-full object-cover">
-                             <span class="truncate max-w-[100px]">{{ userProfile.nickname }}</span>
-                        </div>
-                    </div>
-                 </div>
-            </div>
-
-            <div v-else class="text-center py-16 bg-white rounded-xl border border-dashed border-gray-200 text-gray-400">
-                <ChefHat class="w-12 h-12 mx-auto mb-3 opacity-20" />
-                <p>TA 还没有发布任何菜谱</p>
-            </div>
+        <div v-else class="text-center py-16 text-gray-400">
+          <ChefHat class="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p>还没有发布任何菜谱</p>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, provide } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
@@ -16,6 +16,9 @@ const notificationStore = useNotificationStore()
 
 const searchQuery = ref('')
 const showNotifications = ref(false)
+const mainScrollRef = ref(null)
+
+provide('mainScrollRef', mainScrollRef)
 
 // 判断当前页面是否需要显示搜索栏（只有首页需要）
 const showSearch = computed(() => {
@@ -39,9 +42,13 @@ const pageTitle = computed(() => {
 // 未读通知数
 const unreadCount = computed(() => notificationStore.unreadCount)
 
-// 搜索处理
+// 搜索处理 - 跳转到首页并带上搜索关键词
 const handleSearch = () => {
-  emit('search', searchQuery.value)
+  if (searchQuery.value.trim()) {
+    router.push({ path: '/home', query: { keyword: searchQuery.value.trim() } })
+  } else {
+    router.push('/home')
+  }
 }
 
 // 切换通知面板
@@ -96,7 +103,7 @@ const handleClickOutside = (e) => {
             <input
               v-model="searchQuery"
               type="text"
-              placeholder="搜索菜谱、用户..."
+              placeholder="搜索菜谱..."
               class="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 transition"
               @keyup.enter="handleSearch"
             >
@@ -169,7 +176,7 @@ const handleClickOutside = (e) => {
       </header>
 
       <!-- 内容区域 -->
-      <main class="flex-1 overflow-auto">
+      <main ref="mainScrollRef" class="flex-1 overflow-auto">
         <slot></slot>
       </main>
     </div>
