@@ -9,36 +9,69 @@ body {
 /* ============================================
    Page Transition Animations
    ============================================ */
-/* Fade transition */
-.page-fade-enter-active,
+/* Fade with subtle scale - 默认页面切换动画 */
+.page-fade-enter-active {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .page-fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 1, 1);
 }
 
 .page-fade-enter-from {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(12px) scale(0.99);
 }
 
 .page-fade-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-8px) scale(0.99);
 }
 
-/* Slide transition */
+/* Slide Right transition - 前进导航 */
 .page-slide-enter-active,
 .page-slide-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .page-slide-enter-from {
   opacity: 0;
-  transform: translateX(20px);
+  transform: translateX(30px);
 }
 
 .page-slide-leave-to {
   opacity: 0;
-  transform: translateX(-20px);
+  transform: translateX(-30px);
+}
+
+/* Zoom transition - 详情页等层级变化 */
+.page-zoom-enter-active {
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.page-zoom-leave-active {
+  transition: all 0.25s cubic-bezier(0.4, 0, 1, 1);
+}
+
+.page-zoom-enter-from {
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+.page-zoom-leave-to {
+  opacity: 0;
+  transform: scale(1.03);
+}
+
+/* Smooth fade - 轻柔淡入淡出 */
+.page-smooth-enter-active,
+.page-smooth-leave-active {
+  transition: opacity 0.4s ease;
+}
+
+.page-smooth-enter-from,
+.page-smooth-leave-to {
+  opacity: 0;
 }
 
 /* ============================================

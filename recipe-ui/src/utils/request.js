@@ -30,6 +30,11 @@ request.interceptors.response.use(
         // Adjust based on your Result class.
         if (res.code === 200) {
             return res.data
+        } else if (res.code === 401) {
+            const userStore = useUserStore()
+            userStore.logout()
+            window.location.href = '/login'
+            return Promise.reject(new Error(res.msg || 'Unauthorized'))
         } else {
             // 创建自定义错误对象，保留完整的响应信息
             const error = new Error(res.msg || 'Error')
@@ -43,7 +48,7 @@ request.interceptors.response.use(
         if (error.response && error.response.status === 401) {
             const userStore = useUserStore()
             userStore.logout()
-            // redirect to login?
+            window.location.href = '/login'
         }
         return Promise.reject(error)
     }

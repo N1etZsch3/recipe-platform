@@ -6,7 +6,7 @@ package com.n1etzsch3.recipe.common.constant;
 public class CacheConstants {
 
     // ==================== 缓存名称 ====================
-    public static final String CACHE_CATEGORIES = "categories";
+    public static final String CACHE_CATEGORIES = "categories_v2";
     public static final String CACHE_DASHBOARD = "dashboard";
     public static final String CACHE_USER = "user";
     public static final String CACHE_RECIPE = "recipe";
@@ -34,4 +34,12 @@ public class CacheConstants {
     public static final long TTL_RECIPE = 7200; // 2小时
     public static final long TTL_HOT_RECIPES = 600; // 10分钟
     public static final long TTL_CAPTCHA = 300; // 5分钟
+
+    // ==================== Redis Streams ====================
+    /** 菜谱发布处理队列 */
+    public static final String STREAM_RECIPE_PUBLISH = KEY_PREFIX + "stream:recipe:publish";
+    /** 消费者组名称 */
+    public static final String STREAM_GROUP_RECIPE = "recipe-processor-group";
+    /** 消费者名称前缀 */
+    public static final String STREAM_CONSUMER_PREFIX = "worker-";
 }

@@ -10,7 +10,8 @@ import {
 import { 
   getConversations, getMessages, sendMessage as apiSendMessage, markRead, checkOnlineStatus
 } from '@/api/social'
-import { formatTime, getAvatarUrl } from './useMessageUtils'
+import { formatTime } from './useMessageUtils'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const props = defineProps({
   initialChatWith: { type: [String, Number], default: null },
@@ -278,10 +279,11 @@ onUnmounted(() => {
               @click="selectConversation(conv); conversationListCollapsed = false"
               class="relative cursor-pointer group"
             >
-              <img 
-                :src="getAvatarUrl(conv.avatar, conv.nickname)" 
-                class="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm group-hover:ring-orange-200 transition-all"
-              >
+              <UserAvatar 
+                :src="conv.avatar" 
+                :name="conv.nickname"
+                class="w-10 h-10 ring-2 ring-white shadow-sm group-hover:ring-orange-200"
+              />
               <div v-if="conv.unread > 0" class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
                 {{ conv.unread > 9 ? '•' : conv.unread }}
               </div>
@@ -335,14 +337,15 @@ onUnmounted(() => {
               ]"
             >
               <div class="relative flex-shrink-0">
-                <img 
-                  :src="getAvatarUrl(conv.avatar, conv.nickname)" 
+                <UserAvatar 
+                  :src="conv.avatar" 
+                  :name="conv.nickname"
                   :class="[
-                    'w-12 h-12 rounded-full object-cover transition-all',
+                    'w-12 h-12 transition-all',
                     selectedConversation?.userId === conv.userId ? 'ring-2 ring-orange-200' : ''
                   ]"
                   @click.stop="router.push(`/user/${conv.userId}`)"
-                >
+                />
                 <div v-if="conv.unread > 0" class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold px-1">
                   {{ conv.unread > 99 ? '99+' : conv.unread }}
                 </div>
@@ -378,12 +381,12 @@ onUnmounted(() => {
           <button @click="backToList" class="md:hidden p-1.5 hover:bg-gray-100 rounded">
             <ArrowLeft class="w-4 h-4 text-gray-600" />
           </button>
-          <img 
-            :src="getAvatarUrl(selectedConversation.avatar, selectedConversation.nickname)" 
-            class="w-9 h-9 rounded-full object-cover bg-gray-200 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+          <UserAvatar 
+            :src="selectedConversation.avatar" 
+            :name="selectedConversation.nickname"
+            class="w-9 h-9 bg-gray-200 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
             @click="router.push(`/user/${selectedConversation.userId}`)"
-            title="查看用户主页"
-          >
+          />
           <div class="flex-1">
             <div class="font-medium text-gray-800 text-sm">{{ selectedConversation.nickname }}</div>
             <div :class="[
@@ -407,12 +410,13 @@ onUnmounted(() => {
             暂无消息，打个招呼吧！
           </div>
           <div v-for="msg in messages" :key="msg.id" :class="['flex', msg.isMine ? 'justify-end' : 'justify-start']">
-            <img 
+            <UserAvatar 
               v-if="!msg.isMine" 
-              :src="getAvatarUrl(selectedConversation.avatar, selectedConversation.nickname)" 
-              class="w-8 h-8 rounded-full object-cover bg-gray-200 mr-2 flex-shrink-0 self-end mb-4 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+              :src="selectedConversation.avatar" 
+              :name="selectedConversation.nickname"
+              class="w-8 h-8 bg-gray-200 mr-2 flex-shrink-0 self-end mb-4 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
               @click="router.push(`/user/${selectedConversation.userId}`)"
-            >
+            />
             <div :class="['max-w-[70%] flex flex-col', msg.isMine ? 'items-end' : 'items-start']">
               <div class="flex items-center gap-1.5">
                 <div v-if="msg.isMine && msg.status === 'fail'" class="text-red-500"><AlertCircle class="w-3.5 h-3.5" /></div>
@@ -422,11 +426,12 @@ onUnmounted(() => {
               </div>
               <div class="text-[10px] mt-1 text-gray-400">{{ msg.time }}</div>
             </div>
-            <img 
+            <UserAvatar 
               v-if="msg.isMine" 
-              :src="getAvatarUrl(userStore.user?.avatar, userStore.user?.nickname || userStore.user?.username)" 
-              class="w-8 h-8 rounded-full object-cover bg-gray-200 ml-2 flex-shrink-0 self-end mb-4"
-            >
+              :src="userStore.user?.avatar" 
+              :name="userStore.user?.nickname || userStore.user?.username"
+              class="w-8 h-8 bg-gray-200 ml-2 flex-shrink-0 self-end mb-4"
+            />
           </div>
         </div>
         <!-- 输入框 -->

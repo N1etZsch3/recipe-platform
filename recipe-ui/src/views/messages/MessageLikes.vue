@@ -3,7 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Heart, ArrowRight, ArrowLeft } from 'lucide-vue-next'
 import { getLikesForMe, getLikeDetail } from '@/api/social'
-import { formatTime, getAvatarUrl } from './useMessageUtils'
+import { formatTime } from './useMessageUtils'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const router = useRouter()
 
@@ -73,12 +74,13 @@ onMounted(() => loadData())
           >
             <div class="flex items-start gap-3">
               <div class="flex -space-x-2 flex-shrink-0">
-                <img 
+                <UserAvatar 
                   v-for="(liker, idx) in (like.likers || []).slice(0, 3)" 
                   :key="liker.userId"
-                  :src="getAvatarUrl(liker.avatar, liker.nickname)" 
-                  :class="['w-8 h-8 rounded-full border-2 border-white object-cover', idx > 0 ? '-ml-2' : '']"
-                >
+                  :src="liker.avatar" 
+                  :name="liker.nickname"
+                  :class="['w-8 h-8 ring-2 ring-white', idx > 0 ? '-ml-2' : '']"
+                />
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1 flex-wrap mb-1">
@@ -124,10 +126,11 @@ onMounted(() => loadData())
           <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400"></div>
         </div>
         <div v-else v-for="item in likeDetail" :key="item.likers?.[0]?.userId" class="flex items-center gap-3 p-3 bg-white rounded-xl">
-          <img 
-            :src="getAvatarUrl(item.likers?.[0]?.avatar, item.likers?.[0]?.nickname)" 
-            class="w-10 h-10 rounded-full object-cover flex-shrink-0"
-          >
+          <UserAvatar 
+            :src="item.likers?.[0]?.avatar" 
+            :name="item.likers?.[0]?.nickname"
+            class="w-10 h-10 flex-shrink-0"
+          />
           <div class="flex-1">
             <div class="font-medium text-gray-800 text-sm">{{ item.likers?.[0]?.nickname }}</div>
             <div class="text-xs text-gray-400">{{ formatTime(item.likers?.[0]?.likeTime) }}</div>

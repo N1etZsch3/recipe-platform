@@ -9,14 +9,12 @@ import {
   Bookmark, 
   ChefHat, 
   ArrowRight, 
-  PlayCircle,
   Star,
   Utensils,
   Flame,
   Soup,
-  Instagram,
-  Twitter,
-  Facebook
+  LogIn,
+  Info
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -102,10 +100,34 @@ const features = [
 
 <template>
   <div class="min-h-screen bg-[#FFFBF5] font-sans overflow-x-hidden flex flex-col">
-    <!-- Navbar is handled globally in App.vue -->
+    <!-- Header -->
+    <header class="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-orange-100">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+            <ChefHat class="w-5 h-5 text-white" />
+          </div>
+          <span class="font-bold text-gray-800">三食六记</span>
+        </div>
+        <div class="flex items-center gap-4">
+          <button 
+            @click="router.push('/about')"
+            class="text-gray-500 hover:text-orange-500 transition text-sm font-medium"
+          >
+            关于我们
+          </button>
+          <button 
+            @click="router.push('/login')"
+            class="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium text-sm hover:bg-orange-600 transition"
+          >
+            登录
+          </button>
+        </div>
+      </div>
+    </header>
     
     <!-- Premium Hero Section (CSS Composition) -->
-    <section class="relative pt-12 pb-20 lg:pt-24 lg:pb-32 overflow-hidden flex-shrink-0">
+    <section class="relative pt-12 pb-20 lg:pt-16 lg:pb-32 overflow-hidden flex-shrink-0">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         <div class="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           
@@ -133,11 +155,23 @@ const features = [
                 开始探索
               </button>
               <button 
-                @click="router.push('/create')"
-                class="px-8 py-4 bg-white border border-gray-200 text-gray-700 rounded-full font-bold text-lg hover:bg-orange-50 hover:border-orange-200 transition flex items-center justify-center gap-2 transform active:scale-95 shadow-sm"
+                @click="router.push('/login')"
+                class="px-8 py-4 bg-white border-2 border-orange-400 text-orange-600 rounded-full font-bold text-lg hover:bg-orange-500 hover:text-white hover:border-orange-500 transition flex items-center justify-center gap-2 transform active:scale-95 shadow-md"
               >
-                <PlayCircle class="w-5 h-5 text-orange-500 opacity-80" />
-                去分享
+                <LogIn class="w-5 h-5" />
+                登录 / 注册
+              </button>
+            </div>
+            
+            <!-- 关于我们入口 -->
+            <div class="pt-4">
+              <button 
+                @click="router.push('/about')"
+                class="inline-flex items-center gap-2 text-gray-500 hover:text-orange-500 transition text-sm font-medium group"
+              >
+                <Info class="w-4 h-4" />
+                <span>了解开发团队</span>
+                <ArrowRight class="w-4 h-4 group-hover:translate-x-1 transition" />
               </button>
             </div>
           </div>
@@ -273,76 +307,46 @@ const features = [
       </div>
     </section>
 
-    <!-- Footer (Refined & Clean) -->
-    <footer class="bg-[#FDF8F5] border-t border-orange-100 pt-20 pb-10 mt-auto">
+    <!-- Footer (Simplified) -->
+    <footer class="bg-[#FDF8F5] border-t border-orange-100 pt-16 pb-8 mt-auto">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid md:grid-cols-12 gap-12 lg:gap-8 mb-16">
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-12 mb-12">
           <!-- Brand Column -->
-          <div class="md:col-span-4 lg:col-span-5 space-y-6">
-            <div class="font-bold text-3xl flex items-center gap-3 text-gray-900">
+          <div class="space-y-4">
+            <div class="font-bold text-2xl flex items-center gap-3 text-gray-900">
               <div class="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
                 <ChefHat class="w-6 h-6 text-white" />
               </div>
               <span class="tracking-tight">三食六记</span>
             </div>
-            <p class="text-gray-500 text-sm leading-7 max-w-sm">
-              我们致力于构建最温暖的美食社区。在这里，每一道菜都有故事，每一次烹饪都是对生活的热爱。加入我们，记录你的味蕾记忆。
+            <p class="text-gray-500 text-sm leading-relaxed max-w-sm">
+              我们致力于构建最温暖的美食社区。在这里，每一道菜都有故事，每一次烹饪都是对生活的热爱。
             </p>
-            <div class="flex gap-4">
-               <button class="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50 transition shadow-sm">
-                 <Instagram class="w-5 h-5" />
-               </button>
-               <button class="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50 transition shadow-sm">
-                 <Twitter class="w-5 h-5" />
-               </button>
-               <button class="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50 transition shadow-sm">
-                 <Facebook class="w-5 h-5" />
-               </button>
-            </div>
           </div>
           
           <!-- Links Column 1 -->
-          <div class="md:col-span-2 lg:col-start-7 lg:col-span-2">
-            <h4 class="font-bold text-gray-900 mb-6 text-lg">探索</h4>
-            <ul class="space-y-4 text-gray-500 text-sm">
-              <li><router-link to="/home" class="hover:text-orange-600 hover:translate-x-1 transition inline-block">今日推荐</router-link></li>
-              <li><router-link to="/home" class="hover:text-orange-600 hover:translate-x-1 transition inline-block">热门分类</router-link></li>
-              <li><router-link to="/home" class="hover:text-orange-600 hover:translate-x-1 transition inline-block">社区活动</router-link></li>
-              <li><router-link to="/home" class="hover:text-orange-600 hover:translate-x-1 transition inline-block">生活周刊</router-link></li>
+          <div>
+            <h4 class="font-bold text-gray-900 mb-4 text-base">探索</h4>
+            <ul class="space-y-3 text-gray-500 text-sm">
+              <li><router-link to="/home" class="hover:text-orange-600 transition">浏览菜谱</router-link></li>
+              <li><router-link to="/create" class="hover:text-orange-600 transition">发布菜谱</router-link></li>
+              <li><router-link to="/about" class="hover:text-orange-600 transition">关于我们</router-link></li>
             </ul>
           </div>
           
           <!-- Links Column 2 -->
-          <div class="md:col-span-2 lg:col-span-2">
-            <h4 class="font-bold text-gray-900 mb-6 text-lg">平台</h4>
-            <ul class="space-y-4 text-gray-500 text-sm">
-              <li><router-link to="/login" class="hover:text-orange-600 hover:translate-x-1 transition inline-block">登录/注册</router-link></li>
-              <li><a href="#" class="hover:text-orange-600 hover:translate-x-1 transition inline-block">关于我们</a></li>
-              <li><a href="#" class="hover:text-orange-600 hover:translate-x-1 transition inline-block">用户协议</a></li>
-              <li><a href="#" class="hover:text-orange-600 hover:translate-x-1 transition inline-block">隐私政策</a></li>
+          <div>
+            <h4 class="font-bold text-gray-900 mb-4 text-base">账户</h4>
+            <ul class="space-y-3 text-gray-500 text-sm">
+              <li><router-link to="/login" class="hover:text-orange-600 transition flex items-center gap-1"><LogIn class="w-4 h-4" /> 登录 / 注册</router-link></li>
+              <li><router-link to="/profile" class="hover:text-orange-600 transition">个人中心</router-link></li>
             </ul>
-          </div>
-
-          <!-- Subscribe Column -->
-          <div class="md:col-span-4 lg:col-span-2">
-             <h4 class="font-bold text-gray-900 mb-6 text-lg">加入社区</h4>
-             <p class="text-sm text-gray-400 mb-4 leading-relaxed">订阅我们的周刊，不错过每一个美味瞬间。</p>
-             <div class="relative">
-               <input type="email" placeholder="您的邮箱地址" class="w-full bg-white border border-gray-200 text-gray-700 px-4 py-3 rounded-lg text-sm focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition shadow-sm placeholder-gray-300">
-               <button class="absolute right-1 top-1 bottom-1 bg-orange-500 text-white px-3 rounded-md text-xs font-bold hover:bg-orange-600 transition shadow-md">
-                 订阅
-               </button>
-             </div>
           </div>
         </div>
         
         <!-- Copyright -->
-        <div class="border-t border-gray-200/60 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-gray-400">
+        <div class="border-t border-gray-200/60 pt-6 text-center text-sm text-gray-400">
           <p>&copy; 2025 三食六记 (Three Meals Six Records). All rights reserved.</p>
-          <div class="flex gap-6">
-            <span>ICP备88888888号</span>
-            <span>联系我们</span>
-          </div>
         </div>
       </div>
     </footer>

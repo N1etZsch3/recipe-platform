@@ -14,6 +14,7 @@ import {
   getMyComments, deleteMyComments, getRepliesForMe, getLikesForMe, getLikeDetail,
   checkOnlineStatus
 } from '@/api/social'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -152,10 +153,7 @@ const formatTime = (timeStr) => {
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
-const getAvatarUrl = (avatar, name) => {
-  if (avatar) return avatar
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || 'default')}`
-}
+
 
 // ============= 数据加载 =============
 const loadAllData = async () => {
@@ -511,10 +509,11 @@ const handleUserStatusChange = (event) => {
                   </div>
                 </template>
                 <template v-else>
-                  <img 
-                    :src="getAvatarUrl(item.avatar, item.title)" 
-                    class="w-11 h-11 rounded-full object-cover bg-gray-200"
-                  >
+                  <UserAvatar 
+                    :src="item.avatar" 
+                    :name="item.title"
+                    class="w-11 h-11 bg-gray-200"
+                  />
                 </template>
                 <!-- 未读红点 -->
                 <div 
@@ -571,10 +570,11 @@ const handleUserStatusChange = (event) => {
               <button @click="backToList" class="md:hidden p-1.5 hover:bg-gray-100 rounded-lg transition">
                 <ArrowLeft class="w-5 h-5 text-gray-600" />
               </button>
-              <img 
-                :src="getAvatarUrl(selectedItem.avatar, selectedItem.title)" 
-                class="w-10 h-10 rounded-full object-cover bg-gray-200"
-              >
+              <UserAvatar 
+                :src="selectedItem.avatar" 
+                :name="selectedItem.title"
+                class="w-10 h-10 bg-gray-200"
+              />
               <div class="flex-1">
                 <div class="font-medium text-gray-800">{{ selectedItem.title }}</div>
                 <div :class="[
@@ -599,11 +599,12 @@ const handleUserStatusChange = (event) => {
                 暂无消息，打个招呼吧！
               </div>
               <div v-for="msg in messages" :key="msg.id" :class="['flex', msg.isMine ? 'justify-end' : 'justify-start']">
-                <img 
+                <UserAvatar 
                   v-if="!msg.isMine" 
-                  :src="getAvatarUrl(selectedItem.avatar, selectedItem.title)" 
-                  class="w-8 h-8 rounded-full object-cover bg-gray-200 mr-2 flex-shrink-0 self-end mb-4"
-                >
+                  :src="selectedItem.avatar" 
+                  :name="selectedItem.title"
+                  class="w-8 h-8 bg-gray-200 mr-2 flex-shrink-0 self-end mb-4"
+                />
                 <div :class="['max-w-[70%] flex flex-col', msg.isMine ? 'items-end' : 'items-start']">
                   <div class="flex items-center gap-1.5">
                     <div v-if="msg.isMine && msg.status === 'fail'" class="text-red-500"><AlertCircle class="w-3.5 h-3.5" /></div>
@@ -613,11 +614,12 @@ const handleUserStatusChange = (event) => {
                   </div>
                   <div class="text-[10px] mt-1 text-gray-400">{{ msg.time }}</div>
                 </div>
-                <img 
+                <UserAvatar 
                   v-if="msg.isMine" 
-                  :src="getAvatarUrl(userStore.user?.avatar, userStore.user?.nickname || userStore.user?.username)" 
-                  class="w-8 h-8 rounded-full object-cover bg-gray-200 ml-2 flex-shrink-0 self-end mb-4"
-                >
+                  :src="userStore.user?.avatar" 
+                  :name="userStore.user?.nickname || userStore.user?.username"
+                  class="w-8 h-8 bg-gray-200 ml-2 flex-shrink-0 self-end mb-4"
+                />
               </div>
             </div>
             
@@ -650,10 +652,11 @@ const handleUserStatusChange = (event) => {
             <div class="flex-1 overflow-y-auto p-4">
               <div class="bg-white rounded-xl p-4 shadow-sm">
                 <div class="flex items-start gap-3 mb-4">
-                  <img 
-                    :src="getAvatarUrl(selectedItem.raw.replyUserAvatar, selectedItem.raw.replyUserName)" 
-                    class="w-12 h-12 rounded-full object-cover"
-                  >
+                  <UserAvatar 
+                    :src="selectedItem.raw.replyUserAvatar" 
+                    :name="selectedItem.raw.replyUserName"
+                    class="w-12 h-12"
+                  />
                   <div class="flex-1">
                     <div class="font-medium text-gray-800 mb-1">{{ selectedItem.raw.replyUserName }}</div>
                     <div class="text-xs text-gray-400">{{ formatTime(selectedItem.raw.createTime) }}</div>
@@ -700,10 +703,11 @@ const handleUserStatusChange = (event) => {
               </div>
               <div v-else class="space-y-2">
                 <div v-for="item in likeDetail" :key="item.likers?.[0]?.userId" class="flex items-center gap-3 p-3 bg-white rounded-xl">
-                  <img 
-                    :src="getAvatarUrl(item.likers?.[0]?.avatar, item.likers?.[0]?.nickname)" 
-                    class="w-10 h-10 rounded-full object-cover"
-                  >
+                  <UserAvatar 
+                    :src="item.likers?.[0]?.avatar" 
+                    :name="item.likers?.[0]?.nickname"
+                    class="w-10 h-10"
+                  />
                   <div class="flex-1">
                     <div class="font-medium text-gray-800 text-sm">{{ item.likers?.[0]?.nickname }}</div>
                     <div class="text-xs text-gray-400">{{ formatTime(item.likers?.[0]?.likeTime) }}</div>

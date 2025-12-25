@@ -4,11 +4,12 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useToast } from '../components/Toast.vue'
 import { useModal } from '@/composables/useModal'
-import { listRecipies, deleteRecipe as deleteRecipeApi, unpublishRecipe as unpublishRecipeApi } from '@/api/recipe'
+import { listRecipies, deleteRecipe as deleteRecipeApi, unpublishRecipe as unpublishRecipeApi, withdrawRecipe as withdrawRecipeApi } from '@/api/recipe'
 import { updateProfile, getProfile, changePassword } from '@/api/auth'
 import { uploadFile } from '@/api/common'
-import { getMyFavorites, getMyFollows, unfollowUser } from '@/api/social' 
-import { ChefHat, Heart, User, MessageCircle, Settings, Edit2, Trash2, X, Send, ArrowDown, UserMinus, Lock } from 'lucide-vue-next'
+import { getMyFavorites, getMyFollows, getMyFans, unfollowUser, followUser } from '@/api/social' 
+import { ChefHat, Heart, User, MessageCircle, Settings, Edit2, Trash2, X, Send, ArrowDown, UserMinus, UserPlus, Lock, Users } from 'lucide-vue-next'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 
 
@@ -24,7 +25,7 @@ const profileTabs = [
     { id: 'recipes', icon: ChefHat, label: '我的菜谱' },
     { id: 'favorites', icon: Heart, label: '我的收藏' },
     { id: 'following', icon: User, label: '我的关注' },
-
+    { id: 'fans', icon: Users, label: '我的粉丝' },
     { id: 'settings', icon: Settings, label: '个人信息' },
 ]
 
@@ -32,6 +33,7 @@ const profileTabs = [
 const myRecipes = ref([])
 const myFavorites = ref([]) // Store favorites
 const myFollows = ref([]) // Empty for now, API missing
+const myFans = ref([])
 const loading = ref(false)
 
 // 个人资料表单
@@ -231,13 +233,48 @@ const loadMyFollows = async () => {
     }
 }
 
+// 加载我的粉丝
+const loadMyFans = async () => {
+    loading.value = true
+    try {
+        const res = await getMyFans({ page: 1, size: 50 })
+        // 后端返回的 UserVO 包含 isFollow 状态
+        myFans.value = res.records
+    } catch (error) {
+        console.error('Failed to load fans', error)
+        showToast('加载粉丝失败')
+    } finally {
+        loading.value = false
+    }
+}
+
+// 关注用户 (回关)
+const handleFollow = async (user) => {
+    try {
+        await followUser(user.id)
+        user.isFollow = true // 更新本地状态
+        showToast('关注成功')
+    } catch (error) {
+        showToast('操作失败')
+    }
+}
+
 // 取消关注
-const handleUnfollow = async (userId) => {
+const handleUnfollow = async (user) => {
     const confirmed = await confirm('确定取消关注吗？')
     if (confirmed) {
         try {
-            await unfollowUser(userId)
-            myFollows.value = myFollows.value.filter(u => u.id !== userId)
+            await unfollowUser(user.id)
+            // 如果在关注列表中，移除
+            myFollows.value = myFollows.value.filter(u => u.id !== user.id)
+            // 如果在粉丝列表中，更新状态
+            const fan = myFans.value.find(u => u.id === user.id)
+            if (fan) {
+                fan.isFollow = false
+            }
+            // 更新当前对象状态
+            user.isFollow = false
+            
             showToast('已取消关注')
         } catch (error) {
             showToast('操作失败')
@@ -253,6 +290,8 @@ watch(activeProfileTab, (newTab) => {
         loadMyFavorites()
     } else if (newTab === 'following') {
         loadMyFollows()
+    } else if (newTab === 'fans') {
+        loadMyFans()
     }
 })
 
@@ -293,22 +332,40 @@ const unpublishRecipe = async (id) => {
         }
     }
 }
+
+// 撤销发布（待审核 -> 草稿）
+const withdrawRecipe = async (id) => {
+    const confirmed = await confirm('撤销后菜谱将保存为草稿，您可以继续编辑后重新提交。确定撤销吗？')
+    if (confirmed) {
+        try {
+            await withdrawRecipeApi(id)
+            // 更新本地状态
+            const recipe = myRecipes.value.find(r => r.id === id)
+            if (recipe) {
+                recipe.status = 3 // 改为草稿
+            }
+            showToast('已撤销发布，菜谱已保存为草稿')
+        } catch (error) {
+            const msg = error.message || '撤销失败'
+            showToast(msg)
+        }
+    }
+}
 </script>
 
 
 <template>
   <div class="profile-view-wrapper">
-    <div class="p-6">
+    <div class="p-6 max-w-5xl mx-auto">
       <!-- 用户信息卡片 -->
       <div class="bg-white rounded-2xl shadow-sm p-6 mb-6 border border-gray-100">
         <div class="flex items-center gap-6">
           <!-- 头像 -->
-          <div class="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden flex-shrink-0">
-            <img v-if="userStore.user?.avatar" :src="userStore.user.avatar" class="w-full h-full object-cover">
-            <div v-else class="w-full h-full bg-orange-100 flex items-center justify-center text-3xl text-orange-600 font-bold">
-              {{ userStore.user?.username?.charAt(0).toUpperCase() || 'U' }}
-            </div>
-          </div>
+          <UserAvatar 
+            :src="userStore.user?.avatar" 
+            :name="userStore.user?.username"
+            class="w-20 h-20 border-4 border-white shadow-lg flex-shrink-0"
+          />
           
           <!-- 用户信息 -->
           <div class="flex-1 min-w-0">
@@ -370,7 +427,9 @@ const unpublishRecipe = async (id) => {
                               <!-- 状态标签 -->
                               <span v-if="r.status === 1" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium border border-green-200">已发布</span>
                               <span v-else-if="r.status === 0" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded font-medium border border-yellow-200">审核中</span>
-                              <div v-else class="text-right">
+                              <span v-else-if="r.status === 3" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-medium border border-gray-200">草稿</span>
+                              <span v-else-if="r.status === 4" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-medium border border-blue-200">处理中</span>
+                              <div v-else-if="r.status === 2" class="text-right">
                                   <span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-medium border border-red-200">未通过</span>
                                   <p class="text-[10px] text-red-500 mt-1 max-w-[150px] truncate" :title="r.rejectReason">{{ r.rejectReason }}</p>
                               </div>
@@ -385,6 +444,14 @@ const unpublishRecipe = async (id) => {
                                   class="text-orange-500 hover:bg-orange-50 p-1.5 rounded text-xs flex items-center gap-1 transition"
                                >
                                   <ArrowDown class="w-3 h-3" /> 下架
+                               </button>
+                               <!-- 待审核或处理中状态显示撤销按钮 -->
+                               <button 
+                                  v-if="r.status === 0 || r.status === 4" 
+                                  @click.stop="withdrawRecipe(r.id)" 
+                                  class="text-gray-500 hover:bg-gray-50 p-1.5 rounded text-xs flex items-center gap-1 transition"
+                               >
+                                  <X class="w-3 h-3" /> 撤销
                                </button>
                                <!-- 非已发布状态可以编辑 -->
                                <button 
@@ -428,7 +495,11 @@ const unpublishRecipe = async (id) => {
                           <div>
                                <h4 class="font-bold text-gray-800 mb-2 line-clamp-1" :title="r.title">{{ r.title }}</h4>
                                <div class="flex items-center gap-2 text-xs text-gray-500">
-                                  <img v-if="r.authorAvatar" :src="r.authorAvatar" class="w-5 h-5 rounded-full object-cover">
+                                  <UserAvatar 
+                                    :src="r.authorAvatar" 
+                                    :name="r.authorName"
+                                    class="w-5 h-5 flex-shrink-0"
+                                  />
                                   <span class="truncate max-w-[100px]">{{ r.authorName }}</span>
                               </div>
                           </div>
@@ -438,8 +509,7 @@ const unpublishRecipe = async (id) => {
           </div>
 
 
-          
-          <!-- 我的关注 -->
+
           <div v-if="activeProfileTab === 'following'" class="h-full flex flex-col">
                <div class="flex justify-between items-center mb-6">
                   <h3 class="font-bold text-xl text-gray-800">我的关注 ({{ myFollows.length }})</h3>
@@ -455,12 +525,12 @@ const unpublishRecipe = async (id) => {
               
               <div v-else class="space-y-4">
                   <div v-for="user in myFollows" :key="user.id" class="flex items-center gap-4 p-4 border border-gray-100 rounded-xl bg-white hover:border-orange-200 hover:shadow-sm transition group">
-                      <div class="w-14 h-14 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 cursor-pointer" @click="router.push(`/user/${user.id}`)">
-                          <img v-if="user.avatar" :src="user.avatar" class="w-full h-full object-cover">
-                          <div v-else class="w-full h-full bg-gradient-to-br from-orange-400 to-red-400 flex items-center justify-center text-white font-bold text-xl">
-                              {{ user.nickname?.charAt(0) }}
-                          </div>
-                      </div>
+                      <UserAvatar 
+                        :src="user.avatar" 
+                        :name="user.nickname"
+                        class="w-14 h-14 bg-gray-100 flex-shrink-0 cursor-pointer"
+                        @click="router.push(`/user/${user.id}`)"
+                      />
                       <div class="flex-1 min-w-0">
                           <div class="flex items-center gap-2 mb-1">
                               <h4 class="font-bold text-gray-800 truncate text-lg cursor-pointer hover:text-orange-500 transition" @click="router.push(`/user/${user.id}`)">{{ user.nickname }}</h4>
@@ -468,11 +538,58 @@ const unpublishRecipe = async (id) => {
                           <p class="text-sm text-gray-500 truncate">{{ user.intro || '这个人很懒，什么也没写' }}</p>
                       </div>
                       <button 
-                          @click="handleUnfollow(user.id)"
-                          class="px-4 py-2 text-gray-500 bg-gray-50 hover:bg-red-50 hover:text-red-600 rounded-lg transition text-sm font-medium flex items-center gap-2 opacity-0 group-hover:opacity-100"
+                          @click="handleUnfollow(user)"
+                          class="px-5 py-2 text-gray-500 bg-gray-50 hover:bg-red-50 hover:text-red-600 rounded-lg transition text-sm font-medium flex items-center gap-1.5 opacity-0 group-hover:opacity-100 whitespace-nowrap"
                           title="取消关注"
                       >
                           <UserMinus class="w-4 h-4" /> <span class="hidden md:inline">取消关注</span>
+                      </button>
+                  </div>
+              </div>
+          </div>
+
+          <!-- 我的粉丝 -->
+          <div v-if="activeProfileTab === 'fans'" class="h-full flex flex-col">
+               <div class="flex justify-between items-center mb-6">
+                  <h3 class="font-bold text-xl text-gray-800">我的粉丝 ({{ myFans.length }})</h3>
+              </div>
+              
+              <div v-if="loading" class="py-10 text-center text-gray-400">
+                  加载中...
+              </div>
+              <div v-else-if="myFans.length === 0" class="flex-1 flex flex-col items-center justify-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 py-12">
+                  <Users class="w-12 h-12 mb-4 opacity-20" />
+                  <p>还没有粉丝，快去发布优质内容吧！</p>
+              </div>
+              
+              <div v-else class="space-y-4">
+                  <div v-for="user in myFans" :key="user.id" class="flex items-center gap-4 p-4 border border-gray-100 rounded-xl bg-white hover:border-orange-200 hover:shadow-sm transition group">
+                      <UserAvatar 
+                        :src="user.avatar" 
+                        :name="user.nickname"
+                        class="w-14 h-14 bg-gray-100 flex-shrink-0 cursor-pointer"
+                        @click="router.push(`/user/${user.id}`)"
+                      />
+                      <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2 mb-1">
+                              <h4 class="font-bold text-gray-800 truncate text-lg cursor-pointer hover:text-orange-500 transition" @click="router.push(`/user/${user.id}`)">{{ user.nickname }}</h4>
+                              <span v-if="user.isFollow" class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">互相关注</span>
+                          </div>
+                          <p class="text-sm text-gray-500 truncate">{{ user.intro || '这个人很懒，什么也没写' }}</p>
+                      </div>
+                      <button 
+                          v-if="user.isFollow"
+                          @click="handleUnfollow(user)"
+                          class="px-5 py-2 text-gray-400 bg-gray-50 hover:bg-red-50 hover:text-red-500 rounded-lg transition text-sm font-medium whitespace-nowrap"
+                      >
+                          取消关注
+                      </button>
+                      <button 
+                          v-else
+                          @click="handleFollow(user)"
+                          class="px-5 py-2 text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition text-sm font-medium flex items-center gap-1.5 whitespace-nowrap shadow-sm shadow-orange-200"
+                      >
+                          <UserPlus class="w-4 h-4" /> 回关
                       </button>
                   </div>
               </div>
@@ -488,12 +605,13 @@ const unpublishRecipe = async (id) => {
                            <input type="file" ref="avatarInput" class="hidden" accept="image/*" @change="handleAvatarChange">
                            <div 
                                @click="triggerAvatarUpload" 
-                               class="w-32 h-32 rounded-full overflow-hidden cursor-pointer border-4 border-white shadow-xl hover:shadow-2xl transition relative ring-4 ring-orange-50/50"
+                               class="w-32 h-32 rounded-full cursor-pointer border-4 border-white shadow-xl hover:shadow-2xl transition relative ring-4 ring-orange-50/50 group"
                            >
-                               <img v-if="profileForm.avatar" :src="profileForm.avatar" class="w-full h-full object-cover">
-                               <div v-else class="w-full h-full bg-orange-100 flex items-center justify-center text-4xl font-bold text-orange-600">
-                                   {{ userStore.user?.username?.charAt(0).toUpperCase() || 'U' }}
-                               </div>
+                                <UserAvatar 
+                                    :src="profileForm.avatar" 
+                                    :name="userStore.user?.username"
+                                    class="w-full h-full text-4xl"
+                                />
                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition backdrop-blur-[2px]">
                                    <div class="text-center">
                                        <component :is="activeProfileTab === 'settings' ? Edit2 : null" class="w-6 h-6 text-white mx-auto mb-1" />

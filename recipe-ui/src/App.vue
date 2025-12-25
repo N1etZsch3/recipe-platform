@@ -18,9 +18,9 @@ const isAdminRoute = computed(() => {
   return route.path.startsWith('/backstage-m9x2k7')
 })
 
-// 判断是否为独立布局页面（着陆页、登录页）
+// 判断是否为独立布局页面（着陆页、登录页、关于我们）
 const isStandalonePage = computed(() => {
-  return route.path === '/' || route.path === '/login'
+  return route.path === '/' || route.path === '/login' || route.path === '/about'
 })
 
 // 注册全局模态框引用 - 使用 watchEffect 确保每次渲染后都检查

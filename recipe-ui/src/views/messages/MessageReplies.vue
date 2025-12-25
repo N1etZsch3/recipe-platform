@@ -3,7 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { MessageCircle } from 'lucide-vue-next'
 import { getRepliesForMe } from '@/api/social'
-import { formatTime, getAvatarUrl } from './useMessageUtils'
+import { formatTime } from './useMessageUtils'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const router = useRouter()
 
@@ -40,10 +41,11 @@ onMounted(() => loadData())
     <div v-else class="divide-y divide-gray-100">
       <div v-for="reply in replies" :key="reply.id" class="p-4 bg-white hover:bg-gray-50 transition">
         <div class="flex items-start gap-3">
-          <img 
-            :src="getAvatarUrl(reply.replyUserAvatar, reply.replyUserName)" 
-            class="w-10 h-10 rounded-full object-cover flex-shrink-0"
-          >
+          <UserAvatar 
+            :src="reply.replyUserAvatar" 
+            :name="reply.replyUserName"
+            class="w-10 h-10 flex-shrink-0"
+          />
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
               <span class="font-medium text-gray-800">{{ reply.replyUserName }}</span>

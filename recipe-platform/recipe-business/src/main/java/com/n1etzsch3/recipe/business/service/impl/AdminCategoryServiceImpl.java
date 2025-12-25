@@ -37,6 +37,13 @@ public class AdminCategoryServiceImpl implements AdminCategoryService {
     @Override
     @CacheEvict(value = CacheConstants.CACHE_CATEGORIES, key = "'all'")
     public Result<?> addCategory(RecipeCategory category) {
+        // 检查分类名是否已存在
+        Long count = categoryMapper.selectCount(new LambdaQueryWrapper<RecipeCategory>()
+                .eq(RecipeCategory::getName, category.getName()));
+        if (count > 0) {
+            return Result.fail("分类名称已存在");
+        }
+
         category.setCreateTime(LocalDateTime.now());
         categoryMapper.insert(category);
         adminLogService.log("CATEGORY_ADD", "category", Long.valueOf(category.getId()), category.getName(), null);
@@ -50,6 +57,15 @@ public class AdminCategoryServiceImpl implements AdminCategoryService {
         if (existing == null) {
             return Result.fail("分类不存在");
         }
+
+        // 检查分类名是否已被其他分类使用
+        Long count = categoryMapper.selectCount(new LambdaQueryWrapper<RecipeCategory>()
+                .eq(RecipeCategory::getName, category.getName())
+                .ne(RecipeCategory::getId, id));
+        if (count > 0) {
+            return Result.fail("分类名称已存在");
+        }
+
         existing.setName(category.getName());
         existing.setSortOrder(category.getSortOrder());
         categoryMapper.updateById(existing);

@@ -48,4 +48,9 @@ public interface SocialService {
      * 标记消息为已读
      */
     Result<?> markRead(Long senderId);
+
+    /**
+     * 搜索用户
+     */
+    Result<java.util.List<UserVO>> searchUsers(String keyword);
 }

@@ -126,9 +126,9 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void sendNewRecipePending(Long recipeId, String recipeTitle, Long authorId, String authorName) {
-        // 查询所有管理员（正常状态）
+        // 查询所有管理员（包括超级管理员和普通管理员，正常状态）
         List<SysUser> admins = sysUserMapper.selectList(new LambdaQueryWrapper<SysUser>()
-                .eq(SysUser::getRole, "admin")
+                .in(SysUser::getRole, "admin", "common_admin")
                 .eq(SysUser::getStatus, com.n1etzsch3.recipe.common.constant.UserConstants.NORMAL));
 
         if (admins.isEmpty()) {

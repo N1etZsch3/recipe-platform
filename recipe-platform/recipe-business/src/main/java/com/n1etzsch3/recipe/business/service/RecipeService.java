@@ -39,4 +39,9 @@ public interface RecipeService extends IService<RecipeInfo> {
      * 下架菜谱（将已发布状态改为待审核）
      */
     Result<?> unpublishRecipe(Long id);
+
+    /**
+     * 撤销发布（将待审核状态改为草稿）
+     */
+    Result<?> withdrawRecipe(Long id);
 }

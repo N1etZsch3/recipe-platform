@@ -249,4 +249,33 @@ public class AdminController {
         log.info("查询操作日志: page={}, size={}, type={}", page, size, operationType);
         return adminLogService.pageLogs(page, size, operationType, adminId, startDate, endDate);
     }
+
+    // ================== Team Member Management ==================
+
+    private final com.n1etzsch3.recipe.business.service.TeamService teamService;
+
+    @GetMapping("/team/members")
+    public Result<java.util.List<com.n1etzsch3.recipe.business.entity.TeamMember>> listTeamMembers() {
+        log.info("管理员获取团队成员列表");
+        return teamService.listMembers();
+    }
+
+    @PostMapping("/team/members")
+    public Result<?> addTeamMember(@RequestBody com.n1etzsch3.recipe.business.entity.TeamMember member) {
+        log.info("管理员新增团队成员: {}", member.getName());
+        return teamService.addMember(member);
+    }
+
+    @PutMapping("/team/members/{id}")
+    public Result<?> updateTeamMember(@PathVariable Integer id,
+            @RequestBody com.n1etzsch3.recipe.business.entity.TeamMember member) {
+        log.info("管理员修改团队成员: id={}", id);
+        return teamService.updateMember(id, member);
+    }
+
+    @DeleteMapping("/team/members/{id}")
+    public Result<?> deleteTeamMember(@PathVariable Integer id) {
+        log.info("管理员删除团队成员: id={}", id);
+        return teamService.deleteMember(id);
+    }
 }

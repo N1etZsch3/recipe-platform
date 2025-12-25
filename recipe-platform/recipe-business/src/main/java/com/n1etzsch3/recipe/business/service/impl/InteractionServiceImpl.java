@@ -37,6 +37,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.n1etzsch3.recipe.common.constant.RecipeConstants;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -54,6 +56,15 @@ public class InteractionServiceImpl implements InteractionService {
         Long userId = UserContext.getUserId();
         if (userId == null)
             return Result.fail("未登录");
+
+        // 检查菜谱是否存在且已发布
+        RecipeInfo recipe = recipeInfoMapper.selectById(recipeId);
+        if (recipe == null) {
+            return Result.fail("菜谱不存在");
+        }
+        if (recipe.getStatus() != RecipeConstants.STATUS_PUBLISHED) {
+            return Result.fail("只能收藏已发布的菜谱");
+        }
 
         UserFavorite favorite = favoriteMapper.selectOne(new LambdaQueryWrapper<UserFavorite>()
                 .eq(UserFavorite::getUserId, userId)
@@ -76,6 +87,15 @@ public class InteractionServiceImpl implements InteractionService {
     public Result<?> addComment(CommentDTO commentDTO) {
         Long userId = UserContext.getUserId();
 
+        // 检查菜谱是否存在且已发布
+        RecipeInfo recipe = recipeInfoMapper.selectById(commentDTO.getRecipeId());
+        if (recipe == null) {
+            return Result.fail("菜谱不存在");
+        }
+        if (recipe.getStatus() != RecipeConstants.STATUS_PUBLISHED) {
+            return Result.fail("只能评论已发布的菜谱");
+        }
+
         RecipeComment comment = new RecipeComment();
         comment.setUserId(userId);
         comment.setRecipeId(commentDTO.getRecipeId());
@@ -90,8 +110,7 @@ public class InteractionServiceImpl implements InteractionService {
         try {
             SysUser commenter = sysUserMapper.selectById(userId);
             String commenterName = commenter != null ? commenter.getNickname() : "用户";
-            RecipeInfo recipe = recipeInfoMapper.selectById(commentDTO.getRecipeId());
-            String recipeTitle = recipe != null ? recipe.getTitle() : "菜谱";
+            String recipeTitle = recipe.getTitle();
 
             if (commentDTO.getParentId() != null) {
                 // 回复评论 - 通知原评论作者

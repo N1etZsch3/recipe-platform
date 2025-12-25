@@ -61,6 +61,11 @@ const menuItems = [
         icon: MessageSquare 
     },
     { 
+        path: '/backstage-m9x2k7/team', 
+        name: '团队管理', 
+        icon: Users 
+    },
+    { 
         path: '/backstage-m9x2k7/logs', 
         name: '操作日志', 
         icon: ClipboardList 

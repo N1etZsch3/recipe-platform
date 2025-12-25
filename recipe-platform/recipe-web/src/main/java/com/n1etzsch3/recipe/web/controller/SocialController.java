@@ -101,4 +101,12 @@ public class SocialController {
         Map<Long, Boolean> result = userOnlineService.batchCheckOnline(userIds);
         return Result.ok(result);
     }
+
+    /**
+     * 搜索用户
+     */
+    @GetMapping("/users/search")
+    public Result<List<UserVO>> searchUsers(@RequestParam String keyword) {
+        return socialService.searchUsers(keyword);
+    }
 }

@@ -191,3 +191,25 @@ CREATE TABLE `admin_operation_log` (
   KEY `idx_operation_type` (`operation_type`),
   KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员操作日志表';
+
+-- ==========================================
+-- 6. 团队成员模块
+-- ==========================================
+
+-- 表：team_member (团队成员表)
+CREATE TABLE `team_member` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `name` varchar(50) NOT NULL COMMENT '姓名',
+  `role` varchar(100) DEFAULT NULL COMMENT '角色/职位',
+  `avatar` varchar(255) DEFAULT NULL COMMENT '头像URL',
+  `emoji` varchar(10) DEFAULT NULL COMMENT '头像 Emoji (备选)',
+  `color` varchar(100) DEFAULT NULL COMMENT '渐变色类名',
+  `bg_color` varchar(50) DEFAULT NULL COMMENT '背景色类名',
+  `description` text COMMENT '个人简介',
+  `skills` varchar(500) DEFAULT NULL COMMENT '技能标签 JSON 数组',
+  `github` varchar(100) DEFAULT NULL COMMENT 'GitHub 用户名',
+  `email` varchar(100) DEFAULT NULL COMMENT '邮箱',
+  `sort_order` int(4) DEFAULT '0' COMMENT '排序优先级',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='团队成员表';

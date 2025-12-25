@@ -220,19 +220,20 @@ onMounted(() => {
         </button>
 
         <!-- 统计数据 - 左2+右2分布 -->
-        <div class="max-w-4xl mx-auto px-24 flex justify-between pt-20 pb-16">
+        <!-- 统计数据 - 居中对称分布 (中间留空给头像) -->
+        <div class="max-w-4xl mx-auto flex justify-center items-end pt-24 pb-12 gap-32">
           <!-- 左侧两个统计 -->
-          <div class="flex gap-16">
-            <div v-for="stat in stats.slice(0, 2)" :key="stat.label" class="text-center">
+          <div class="flex gap-12">
+            <div v-for="stat in stats.slice(0, 2)" :key="stat.label" class="text-center min-w-[3rem]">
               <div class="text-xs text-white/70 mb-1">{{ stat.label }}</div>
-              <div class="text-2xl font-bold">{{ stat.value }}</div>
+              <div class="text-lg font-bold">{{ stat.value }}</div>
             </div>
           </div>
           <!-- 右侧两个统计 -->
-          <div class="flex gap-16">
-            <div v-for="stat in stats.slice(2, 4)" :key="stat.label" class="text-center">
+          <div class="flex gap-12">
+            <div v-for="stat in stats.slice(2, 4)" :key="stat.label" class="text-center min-w-[3rem]">
               <div class="text-xs text-white/70 mb-1">{{ stat.label }}</div>
-              <div class="text-2xl font-bold">{{ stat.value }}</div>
+              <div class="text-lg font-bold">{{ stat.value }}</div>
             </div>
           </div>
         </div>

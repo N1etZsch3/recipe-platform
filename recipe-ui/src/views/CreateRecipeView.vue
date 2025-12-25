@@ -81,36 +81,25 @@ const removeStep = (index) => {
     }
 }
 
-// 解析 JSON 描述
-const parseDescription = (description) => {
-    try {
-        const data = JSON.parse(description)
-        return {
-            intro: data.intro || '',
-            ingredients: data.ingredients?.length > 0 ? data.ingredients : [{ name: '', amount: '' }],
-            steps: data.steps?.length > 0 ? data.steps : [{ content: '' }]
-        }
-    } catch {
-        // 如果不是 JSON，当作纯文本简介
-        return {
-            intro: description || '',
-            ingredients: [{ name: '', amount: '' }],
-            steps: [{ content: '' }]
-        }
+// 将后端数据转换为表单格式
+const mapBackendIngredients = (ingredients) => {
+    if (!ingredients || ingredients.length === 0) {
+        return [{ name: '', amount: '' }]
     }
+    return ingredients.map(ing => ({
+        name: ing.name || '',
+        amount: ing.amount || ''
+    }))
 }
 
-// 序列化为 JSON 描述
-const serializeDescription = () => {
-    // 过滤空的用料和步骤
-    const ingredients = form.value.ingredients.filter(i => i.name.trim())
-    const steps = form.value.steps.filter(s => s.content.trim())
-    
-    return JSON.stringify({
-        intro: form.value.intro,
-        ingredients: ingredients,
-        steps: steps
-    })
+const mapBackendSteps = (steps) => {
+    if (!steps || steps.length === 0) {
+        return [{ content: '' }]
+    }
+    return steps.map(step => ({
+        content: step.description || step.content || '',
+        imageUrl: step.imageUrl || ''
+    }))
 }
 
 // 加载现有菜谱数据（编辑模式）
@@ -118,14 +107,14 @@ const loadRecipeData = async (id) => {
     loadingData.value = true
     try {
         const res = await getRecipeDetail(id)
-        const parsed = parseDescription(res.description)
+        // 直接使用后端返回的结构化数据
         form.value = {
             title: res.title || '',
             category: res.categoryName || '家常菜',
             coverImage: res.coverImage || '',
-            intro: parsed.intro,
-            ingredients: parsed.ingredients,
-            steps: parsed.steps
+            intro: res.description || '', // description 现在是纯文本简介
+            ingredients: mapBackendIngredients(res.ingredients),
+            steps: mapBackendSteps(res.steps)
         }
     } catch (error) {
         console.error(error)
@@ -188,15 +177,41 @@ const handleSubmit = async () => {
         showToast('请上传成品图')
         return
     }
+    
+    // 验证至少有一个有效的用料
+    const validIngredients = form.value.ingredients.filter(i => i.name.trim())
+    if (validIngredients.length === 0) {
+        showToast('请至少添加一个食材')
+        return
+    }
+    
+    // 验证至少有一个有效的步骤
+    const validSteps = form.value.steps.filter(s => s.content.trim())
+    if (validSteps.length === 0) {
+        showToast('请至少添加一个步骤')
+        return
+    }
 
     submitting.value = true
     try {
+        // 构建结构化数据
         const payload = {
             title: form.value.title,
             category: form.value.category,
             coverImage: form.value.coverImage,
-            content: serializeDescription(),
-            authorId: userStore.user?.id
+            description: form.value.intro, // 纯文本简介
+            // 结构化用料数据
+            ingredients: validIngredients.map((ing, idx) => ({
+                name: ing.name.trim(),
+                amount: ing.amount?.trim() || '适量',
+                sortOrder: idx + 1
+            })),
+            // 结构化步骤数据
+            steps: validSteps.map((step, idx) => ({
+                stepNo: idx + 1,
+                description: step.content.trim(),
+                imageUrl: step.imageUrl || null
+            }))
         }
 
         if (isEditMode.value) {

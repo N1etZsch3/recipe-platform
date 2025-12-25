@@ -97,7 +97,13 @@ public class SocialServiceImpl implements SocialService {
                 return null;
             UserVO vo = new UserVO();
             BeanUtil.copyProperties(user, vo);
-            // TODO: 是否回关 logic
+
+            // Check if I follow this fan
+            Long count = followMapper.selectCount(new LambdaQueryWrapper<UserFollow>()
+                    .eq(UserFollow::getFollowerId, userId)
+                    .eq(UserFollow::getFollowedId, f.getFollowerId()));
+            vo.setIsFollow(count != null && count > 0);
+
             return vo;
         }).filter(item -> item != null).collect(Collectors.toList());
 
@@ -348,5 +354,44 @@ public class SocialServiceImpl implements SocialService {
                 .set(ChatMessage::getIsRead, 1));
 
         return Result.ok();
+    }
+
+    @Override
+    public Result<List<UserVO>> searchUsers(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return Result.ok(new ArrayList<>());
+        }
+
+        // Limit 20
+        Page<SysUser> page = new Page<>(1, 20);
+        sysUserMapper.selectPage(page, new LambdaQueryWrapper<SysUser>()
+                .like(SysUser::getNickname, keyword)
+                .or()
+                .like(SysUser::getUsername, keyword)
+                .orderByDesc(SysUser::getCreateTime));
+
+        List<SysUser> users = page.getRecords();
+        if (users.isEmpty()) {
+            return Result.ok(new ArrayList<>());
+        }
+
+        Long currentUserId = UserContext.getUserId();
+        List<UserVO> vos = users.stream().map(user -> {
+            UserVO vo = new UserVO();
+            BeanUtil.copyProperties(user, vo);
+
+            if (currentUserId != null) {
+                // Check follow status
+                Long count = followMapper.selectCount(new LambdaQueryWrapper<UserFollow>()
+                        .eq(UserFollow::getFollowerId, currentUserId)
+                        .eq(UserFollow::getFollowedId, user.getId()));
+                vo.setIsFollow(count != null && count > 0);
+            } else {
+                vo.setIsFollow(false);
+            }
+            return vo;
+        }).collect(Collectors.toList());
+
+        return Result.ok(vos);
     }
 }

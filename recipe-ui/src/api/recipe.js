@@ -4,7 +4,8 @@ import request from '@/utils/request'
 export function getCategories() {
     return request({
         url: '/api/v1/recipes/categories',
-        method: 'get'
+        method: 'get',
+        params: { _t: Date.now() }
     })
 }
 
@@ -63,3 +64,10 @@ export function unpublishRecipe(id) {
     })
 }
 
+// 撤销发布（将待审核改为草稿）
+export function withdrawRecipe(id) {
+    return request({
+        url: `/api/v1/recipes/${id}/withdraw`,
+        method: 'post'
+    })
+}

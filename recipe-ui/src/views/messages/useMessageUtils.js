@@ -20,11 +20,7 @@ export const formatTime = (timeStr) => {
     return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
-// 获取头像 URL
-export const getAvatarUrl = (avatar, name) => {
-    if (avatar) return avatar
-    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || 'default')}`
-}
+
 
 // 导航到用户主页
 export const useUserNavigation = () => {

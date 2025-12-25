@@ -7,6 +7,8 @@ import { useModal } from '@/composables/useModal'
 import { getRecipeDetail } from '@/api/recipe'
 import { getComments, commentRecipe, likeRecipe, followUser, unfollowUser, likeComment, getReplies, deleteComment } from '@/api/social'
 import { ArrowLeft, Clock, Heart, MessageCircle, Send, ThumbsUp, Reply, ChevronDown, Trash2 } from 'lucide-vue-next'
+import { formatDate } from '@/utils/format'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -28,40 +30,19 @@ const replyText = ref('')
 const expandedReplies = ref({}) // { commentId: 显示的回复数量 }
 const loadingReplies = ref({}) // { commentId: boolean }
 
-// 解析 JSON 格式的描述
-const parseDescription = (description) => {
-    try {
-        const data = JSON.parse(description)
-        return {
-            intro: data.intro || '',
-            materials: data.ingredients || [],
-            steps: data.steps || []
-        }
-    } catch {
-        // 如果不是 JSON，当作纯文本
-        return {
-            intro: description || '',
-            materials: [],
-            steps: []
-        }
-    }
-}
-
 const loadData = async () => {
     loading.value = true
     try {
         const id = route.params.id
         const res = await getRecipeDetail(id)
         
-        // 解析结构化描述
-        const parsed = parseDescription(res.description)
-        
+        // 直接使用后端返回的结构化数据
         selectedRecipe.value = {
             ...res,
             image: res.coverImage,
-            description: parsed.intro, // 简介/心得
-            materials: parsed.materials.length > 0 ? parsed.materials : res.ingredients,
-            steps: parsed.steps.length > 0 ? parsed.steps : res.steps,
+            description: res.description || '', // 现在是纯文本简介
+            materials: res.ingredients || [], // 直接使用后端返回的用料数据
+            steps: res.steps || [], // 直接使用后端返回的步骤数据
             publishTime: res.createTime
         }
         isFavorite.value = res.isFavorite
@@ -278,19 +259,18 @@ const canDeleteComment = (comment) => {
           <!-- 作者信息 -->
           <div class="flex items-center justify-between py-4 border-t border-b border-gray-100">
             <div class="flex items-center gap-3">
-              <div 
-                class="w-10 h-10 rounded-full overflow-hidden bg-gray-200 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+              <UserAvatar 
+                :src="selectedRecipe.authorAvatar" 
+                :name="selectedRecipe.authorName"
+                class="w-10 h-10 bg-gray-200 cursor-pointer hover:ring-2 hover:ring-orange-300 transition flex-shrink-0"
                 @click="router.push(`/user/${selectedRecipe.userId}`)"
-              >
-                <img v-if="selectedRecipe.authorAvatar" :src="selectedRecipe.authorAvatar" class="w-full h-full object-cover">
-                <div v-else class="w-full h-full flex items-center justify-center text-gray-500 font-medium">{{ selectedRecipe.authorName?.charAt(0) }}</div>
-              </div>
+              />
               <div>
                 <div 
                   class="font-medium text-gray-800 text-sm cursor-pointer hover:text-orange-500 transition"
                   @click="router.push(`/user/${selectedRecipe.userId}`)"
                 >{{ selectedRecipe.authorName }}</div>
-                <div class="text-xs text-gray-400">{{ selectedRecipe.publishTime }}</div>
+                <div class="text-xs text-gray-400">{{ formatDate(selectedRecipe.publishTime) }}</div>
               </div>
             </div>
             <button 
@@ -353,10 +333,11 @@ const canDeleteComment = (comment) => {
         
         <!-- 评论输入 -->
         <div v-if="userStore.user" class="flex gap-3 mb-5 pb-4 border-b border-gray-100">
-          <div class="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-orange-100 to-orange-200 flex-shrink-0 shadow-sm">
-            <img v-if="userStore.user.avatar" :src="userStore.user.avatar" class="w-full h-full object-cover">
-            <div v-else class="w-full h-full flex items-center justify-center text-orange-600 font-bold">{{ userStore.user.username?.charAt(0) }}</div>
-          </div>
+          <UserAvatar 
+            :src="userStore.user.avatar" 
+            :name="userStore.user.username"
+            class="w-10 h-10 ring-2 ring-orange-100 flex-shrink-0 shadow-sm"
+          />
           <div class="flex-1 flex gap-2">
             <input 
               v-model="commentText" 
@@ -379,13 +360,12 @@ const canDeleteComment = (comment) => {
           <div v-for="comment in comments" :key="comment.id" class="group">
             <!-- 主评论 -->
             <div class="flex gap-3">
-              <div 
-                class="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 flex-shrink-0 shadow-sm cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+              <UserAvatar 
+                :src="comment.avatar" 
+                :name="comment.nickname"
+                class="w-10 h-10 flex-shrink-0 shadow-sm cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
                 @click="router.push(`/user/${comment.userId}`)"
-              >
-                <img v-if="comment.avatar" :src="comment.avatar" class="w-full h-full object-cover">
-                <div v-else class="w-full h-full flex items-center justify-center text-gray-500 font-bold text-sm">{{ comment.nickname?.charAt(0) }}</div>
-              </div>
+              />
               <div class="flex-1">
                 <div class="bg-gray-50 rounded-xl p-3 hover:bg-gray-100 transition">
                   <div class="flex items-center justify-between mb-1">
@@ -394,7 +374,7 @@ const canDeleteComment = (comment) => {
                         class="font-medium text-sm text-gray-800 cursor-pointer hover:text-orange-500 transition"
                         @click="router.push(`/user/${comment.userId}`)"
                       >{{ comment.nickname }}</span>
-                      <span class="text-xs text-gray-400">{{ comment.createTime }}</span>
+                      <span class="text-xs text-gray-400">{{ formatDate(comment.createTime) }}</span>
                     </div>
                   </div>
                   <p class="text-gray-700 text-sm leading-relaxed">{{ comment.content }}</p>
@@ -441,13 +421,12 @@ const canDeleteComment = (comment) => {
                 <!-- 回复列表 -->
                 <div v-if="comment.replies?.length > 0" class="mt-3 ml-2 pl-3 border-l-2 border-orange-100 space-y-3">
                   <div v-for="reply in comment.replies" :key="reply.id" class="flex gap-2">
-                    <div 
-                      class="w-7 h-7 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-orange-300 transition"
+                    <UserAvatar 
+                      :src="reply.avatar" 
+                      :name="reply.nickname"
+                      class="w-7 h-7 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-orange-300 transition bg-gray-100 text-xs"
                       @click="router.push(`/user/${reply.userId}`)"
-                    >
-                      <img v-if="reply.avatar" :src="reply.avatar" class="w-full h-full object-cover">
-                      <div v-else class="w-full h-full flex items-center justify-center text-gray-400 text-xs font-bold">{{ reply.nickname?.charAt(0) }}</div>
-                    </div>
+                    />
                     <div class="flex-1">
                       <div class="bg-orange-50 rounded-lg p-2">
                         <div class="flex items-center gap-2 mb-0.5">
@@ -456,7 +435,7 @@ const canDeleteComment = (comment) => {
                             @click="router.push(`/user/${reply.userId}`)"
                           >{{ reply.nickname }}</span>
                           <span v-if="reply.replyToNickname" class="text-xs text-gray-400">回复 <span class="text-orange-500">@{{ reply.replyToNickname }}</span></span>
-                          <span class="text-xs text-gray-400">{{ reply.createTime }}</span>
+                          <span class="text-xs text-gray-400">{{ formatDate(reply.createTime) }}</span>
                         </div>
                         <p class="text-gray-600 text-xs leading-relaxed">{{ reply.content }}</p>
                       </div>

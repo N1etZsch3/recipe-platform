@@ -1,20 +1,20 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { listRecipies } from '@/api/recipe'
+import { listRecipies, getCategories } from '@/api/recipe'
 import { Eye, MessageCircle, Frown, Loader2, Heart } from 'lucide-vue-next'
 import { useToast } from '@/components/Toast.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 
 const router = useRouter()
 const route = useRoute()
 const { showToast } = useToast()
 
-import { RECIPE_CATEGORIES } from '@/utils/constants'
-
 const searchQuery = ref('')
-const filterCategory = ref('全部')
-const categories = ['全部', ...RECIPE_CATEGORIES]
+const categories = ref([{ id: 0, name: '全部' }])
+const currentCategoryId = ref(0)
+
 const mainScrollRef = inject('mainScrollRef', null)
 const scrollContainer = computed(() => {
   return mainScrollRef?.value
@@ -42,8 +42,10 @@ const updateColumnCount = () => {
     columnCount.value = 2
   } else if (width < 1024) {
     columnCount.value = 3
-  } else {
+  } else if (width < 1280) {
     columnCount.value = 4
+  } else {
+    columnCount.value = 5
   }
 }
 
@@ -55,16 +57,6 @@ const initColumns = () => {
 // 分发数据到列中 (Round-Robin)
 const distributeRecipes = (newItems) => {
   newItems.forEach((item, index) => {
-    // 简单的轮询分发，保证顺序和位置固定
-    // 为了接在之前的末尾，我们需要知道全局索引，但这里只处理增量
-    // 如果是追加，我们其实需要知道当前所有 items 的总数来决定起始 colIndex 吗？
-    // 不需要，Masonry 的通常做法是 "Add to shortest column" (不稳定) 或 "Available slots"
-    // 用户想要 "增量渲染有问题，排列的顺序不同"， round-robin 是最稳定的。
-    // 但是 round-robin 在追加时，如果不知道 offset，会从第0列开始放。
-    // 假设之前有 12 个元素 (4列 x 3行)，刚好填满。
-    // 如果之前有 13 个 (4列: 4, 3, 3, 3)，下一个应该放在第 1 列 (index 1)。
-    
-    // 计算当前总元素数量，用于确定下一个元素的放置位置
     const currentTotal = columns.value.reduce((sum, col) => sum + col.length, 0)
     const targetColIndex = currentTotal % columnCount.value
     columns.value[targetColIndex].push(item)
@@ -90,9 +82,22 @@ const handleResize = () => {
   }
 }
 
+// 加载分类
+const loadCategories = async () => {
+    try {
+        const res = await getCategories()
+        // 这里只取前8个或者全部，设计上可能需要 scroll
+        // 假设 res 是 array
+        categories.value = [{ id: 0, name: '全部' }, ...res]
+    } catch (e) {
+        console.error('Failed to load categories')
+        // Fallback or retry?
+    }
+}
+
 // 选择分类
 const selectCategory = (cat) => {
-  filterCategory.value = cat
+  currentCategoryId.value = cat.id
   resetAndFetch()
 }
 
@@ -122,7 +127,7 @@ const fetchRecipes = async (append = false) => {
       page: currentPage.value,
       size: pageSize,
       keyword: searchQuery.value || undefined,
-      category: filterCategory.value !== '全部' ? filterCategory.value : undefined
+      categoryId: currentCategoryId.value !== 0 ? currentCategoryId.value : undefined
     }
     const res = await listRecipies(params)
     
@@ -211,16 +216,6 @@ watch(hasMore, (val) => {
 watch(loadingMore, (val) => {
   if (!val && hasMore.value) {
     nextTick(() => {
-      // 这里的逻辑是：如果加载完一批数据后，触发元素仍然可见（例如屏幕很大，数据很少），
-      // IntersectionObserver 不会再次触发（因为状态没有从不可见变为可见），
-      // 所以我们手动检查一下位置或者简单地依赖下一次滚动
-      // 但对于 IntersectionObserver，只要一直可见，它只触发一次 entry。
-      // 所以如果内容太少，我们需要手动再次触发？
-      // 实际上 standard IO 只在交叉状态变化时触发。
-      // 如果加载后 loadMoreTrigger 依然在视口内，我们需要继续加载。
-      // 可以通过 disconnect 再 observe 来强制触发，或者简单判断位置。
-      // 更简单的做法是：不用处理，用户稍微滚一下就好。
-      // 或者：disconnect -> observe hack
       if (observer && loadMoreTrigger.value) {
         // 强制重新观察以应对连续加载
         observer.unobserve(loadMoreTrigger.value)
@@ -233,6 +228,7 @@ watch(loadingMore, (val) => {
 onMounted(() => {
   updateColumnCount()
   initColumns()
+  loadCategories() // Load dynamic categories
   window.addEventListener('resize', handleResize)
   
   setupIntersectionObserver()
@@ -250,70 +246,71 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="p-6">
+  <div class="p-8">
     <!-- 分类标签栏 -->
-    <div class="mb-6 flex flex-wrap items-center gap-2">
+    <div class="mb-8 flex flex-nowrap items-center gap-3 overflow-x-auto scrollbar-hide pb-2">
       <button 
         v-for="cat in categories" 
-        :key="cat"
+        :key="cat.id"
         @click="selectCategory(cat)"
         :class="[
-          'px-4 py-2 rounded-full text-sm font-medium transition-all',
-          filterCategory === cat 
-            ? 'bg-orange-500 text-white shadow-md shadow-orange-200' 
-            : 'bg-white text-gray-600 hover:bg-orange-50 hover:text-orange-600 border border-gray-200 hover:border-orange-300'
+          'px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 flex-shrink-0',
+          currentCategoryId === cat.id
+            ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' 
+            : 'bg-white text-gray-600 hover:bg-gray-100 border border-transparent shadow-sm hover:shadow'
         ]"
       >
-        {{ cat }}
+        {{ cat.name }}
       </button>
     </div>
 
     <!-- 菜谱瀑布流列表 -->
-    <div class="flex gap-5 items-start masonry-container">
-      <div v-for="(col, colIndex) in columns" :key="colIndex" class="flex-1 flex flex-col gap-5">
+    <div class="flex gap-6 items-start masonry-container">
+      <div v-for="(col, colIndex) in columns" :key="colIndex" class="flex-1 flex flex-col gap-6">
         <div 
           v-for="recipe in col"
           :key="recipe.id" 
           :data-recipe-id="recipe.id"
           @click="router.push(`/recipe/${recipe.id}`)"
-          class="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden group"
+          class="bg-transparent group cursor-pointer"
         >
-          <!-- 图片区域 - 保持原图比例实现瀑布流效果 -->
-          <div class="overflow-hidden relative">
-            <img :src="recipe.image" :alt="recipe.title" class="w-full object-cover group-hover:scale-105 transition duration-500">
-            <!-- 浏览量角标 -->
-            <div class="absolute top-3 right-3 bg-black/40 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
-              <Eye class="w-3 h-3" /> {{ recipe.viewCount }}
-            </div>
-            <!-- 分类标签 -->
-            <div class="absolute bottom-3 left-3">
-              <span class="text-xs bg-white/95 backdrop-blur-sm text-orange-600 px-3 py-1 rounded-full font-medium shadow-sm">
-                {{ recipe.category }}
-              </span>
-            </div>
+          <!-- 图片区域 -->
+          <div class="overflow-hidden relative rounded-2xl mb-3 shadow-sm group-hover:shadow-md transition-shadow">
+            <img :src="recipe.image" :alt="recipe.title" class="w-full group-hover:scale-105 transition-transform duration-500 will-change-transform">
+            <!-- 仅保留视频标记等关键遮罩(如有) -->
           </div>
+          
           <!-- 信息区域 -->
-          <div class="p-4">
-            <h3 class="font-semibold text-gray-800 mb-3 line-clamp-1 group-hover:text-orange-600 transition">{{ recipe.title }}</h3>
+          <div class="px-1">
+            <!-- 标题: 允许两行, 字体稍微改小加粗 -->
+            <div class="font-bold text-gray-900 mb-2 line-clamp-2 text-[15px] leading-snug group-hover:text-gray-700 transition-colors">
+               <span class="inline-block bg-orange-50 text-orange-600 text-[10px] px-1.5 py-0.5 rounded mr-1.5 align-middle border border-orange-100 font-medium h-[18px] leading-[16px]">
+                  {{ recipe.category }}
+               </span>
+               <span class="align-middle">{{ recipe.title }}</span>
+            </div>
+            
             <div class="flex items-center justify-between">
-              <!-- 作者信息 -->
+              <!-- 作者信息 (更紧凑) -->
               <div class="flex items-center gap-2 min-w-0">
-                <div class="w-6 h-6 rounded-full overflow-hidden bg-orange-100 flex-shrink-0">
-                  <img v-if="recipe.authorAvatar" :src="recipe.authorAvatar" class="w-full h-full object-cover">
-                  <div v-else class="w-full h-full flex items-center justify-center text-xs text-orange-500 font-bold">
-                    {{ recipe.authorName?.charAt(0).toUpperCase() || 'U' }}
-                  </div>
-                </div>
-                <span class="text-xs text-gray-500 truncate">{{ recipe.authorName }}</span>
+                <UserAvatar 
+                  :src="recipe.authorAvatar" 
+                  :name="recipe.authorName"
+                  class="w-5 h-5 flex-shrink-0"
+                />
+                <span class="text-xs text-gray-500 truncate hover:text-gray-900 transition-colors">{{ recipe.authorName }}</span>
               </div>
-              <!-- 互动数据 -->
-              <div class="flex items-center gap-2 text-gray-400 text-xs">
-                <span class="flex items-center gap-0.5">
-                  <MessageCircle class="w-3.5 h-3.5" /> {{ recipe.commentCount }}
-                </span>
-                <span :class="['flex items-center gap-0.5', recipe.isFavorite ? 'text-red-500' : '']">
-                  <Heart :class="['w-3.5 h-3.5', recipe.isFavorite ? 'fill-current' : '']" /> {{ recipe.favoriteCount }}
-                </span>
+              
+              <!-- 互动数据: 评论 + 点赞 -->
+              <div class="flex items-center gap-3 text-gray-400 text-xs">
+                 <div class="flex items-center gap-0.5">
+                    <MessageCircle class="w-3.5 h-3.5" />
+                    <span class="font-medium">{{ recipe.commentCount }}</span>
+                 </div>
+                 <div class="flex items-center gap-0.5">
+                    <Heart :class="['w-3.5 h-3.5 transition-colors', recipe.isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-gray-600']" /> 
+                    <span class="font-medium">{{ recipe.favoriteCount }}</span>
+                 </div>
               </div>
             </div>
           </div>

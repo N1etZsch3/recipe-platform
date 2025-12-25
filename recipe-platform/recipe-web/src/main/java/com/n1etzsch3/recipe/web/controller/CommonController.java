@@ -1,6 +1,7 @@
 package com.n1etzsch3.recipe.web.controller;
 
 import com.n1etzsch3.recipe.common.core.domain.Result;
+import com.n1etzsch3.recipe.framework.annotation.RateLimit;
 import com.n1etzsch3.recipe.framework.manager.CosManager;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,6 +29,7 @@ public class CommonController {
     private final RedisTemplate<String, Object> redisTemplate;
 
     @Operation(summary = "文件上传")
+    @RateLimit(time = 60, count = 20, limitType = RateLimit.LimitType.USER)
     @PostMapping("/upload")
     public Result<String> upload(@RequestPart("file") MultipartFile file) {
         log.info("收到文件上传请求: {}, size: {}", file.getOriginalFilename(), file.getSize());

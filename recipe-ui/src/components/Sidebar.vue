@@ -59,7 +59,7 @@ const handleProfileClick = () => {
 // 更多菜单项
 const handleAbout = () => {
   showMoreMenu.value = false
-  showToast('三食六记 - 记录每一餐的美好', 'info')
+  router.push('/about')
 }
 
 const handleContact = () => {
@@ -89,62 +89,67 @@ const getAvatarUrl = computed(() => {
 </script>
 
 <template>
-  <aside class="w-[200px] h-screen bg-white border-r border-gray-100 flex flex-col flex-shrink-0 sticky top-0">
+  <aside class="w-[164px] h-screen bg-white border-r border-gray-100 flex flex-col flex-shrink-0 sticky top-0">
     <!-- Logo + 项目名称 -->
     <div 
-      class="p-5 flex items-center gap-3 cursor-pointer group"
+      class="p-5 flex items-center gap-2 cursor-pointer group"
       @click="router.push('/')"
     >
-      <div class="relative">
+      <div class="relative flex-shrink-0">
         <div class="absolute inset-0 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl blur opacity-40 group-hover:opacity-60 transition"></div>
-        <div class="relative bg-gradient-to-br from-orange-500 to-red-500 p-2.5 rounded-xl">
-          <ChefHat class="w-6 h-6 text-white" />
+        <div class="relative bg-gradient-to-br from-orange-500 to-red-500 p-2 rounded-xl">
+          <ChefHat class="w-5 h-5 text-white" />
         </div>
       </div>
-      <span class="font-bold text-lg bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 bg-clip-text text-transparent">
+      <span class="font-bold text-base bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 bg-clip-text text-transparent truncate">
         三食六记
       </span>
     </div>
 
     <!-- 导航菜单 -->
-    <nav class="flex-1 px-3 py-4 space-y-1">
+    <nav class="flex-1 px-3 py-4 space-y-4">
       <button
         v-for="item in navItems"
         :key="item.id"
         @click="handleNavClick(item)"
         :class="[
-          'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all',
+          'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+          'hover:scale-105 active:scale-95',
           isActive(item.path)
-            ? 'bg-orange-50 text-orange-600'
-            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-200'
+            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
         ]"
       >
-        <component :is="item.icon" class="w-5 h-5" />
+        <component :is="item.icon" class="w-4 h-4" />
         {{ item.name }}
       </button>
+
+      <!-- 分隔线 -->
+      <div class="border-t border-gray-100 my-2"></div>
 
       <!-- 个人中心/登录入口 -->
       <button
         @click="handleProfileClick"
         :class="[
-          'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all mt-2',
+          'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+          'hover:scale-105 active:scale-95',
           isActive('/profile')
-            ? 'bg-orange-50 text-orange-600'
-            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-200'
+            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
         ]"
       >
         <template v-if="userStore.user">
           <img 
             :src="getAvatarUrl" 
-            class="w-6 h-6 rounded-full object-cover ring-2 ring-gray-100"
+            class="w-5 h-5 rounded-full object-cover ring-2 ring-white/50"
           >
           <span class="truncate">{{ userStore.user.nickname || userStore.user.username }}</span>
         </template>
         <template v-else>
-          <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
-            <span class="text-xs text-gray-400">?</span>
+          <div class="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center">
+            <span class="text-[10px] text-gray-500">?</span>
           </div>
-          <span>登录 / 注册</span>
+          <span class="truncate">登录</span>
         </template>
       </button>
     </nav>
@@ -154,13 +159,14 @@ const getAvatarUrl = computed(() => {
       <button
         @click="showMoreMenu = !showMoreMenu"
         :class="[
-          'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all',
+          'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+          'hover:scale-105 active:scale-95',
           showMoreMenu
             ? 'bg-gray-100 text-gray-800'
             : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
         ]"
       >
-        <MoreHorizontal class="w-5 h-5" />
+        <MoreHorizontal class="w-4 h-4" />
         更多
       </button>
 
@@ -183,7 +189,7 @@ const getAvatarUrl = computed(() => {
             class="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition"
           >
             <Info class="w-4 h-4" />
-            关于三食六记
+            关于
           </button>
           
           <!-- 联系管理员 -->
@@ -192,7 +198,7 @@ const getAvatarUrl = computed(() => {
             class="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition border-t border-gray-50"
           >
             <Mail class="w-4 h-4" />
-            联系管理员
+            联系
           </button>
           
           <!-- 退出登录（仅登录用户显示） -->
@@ -202,7 +208,7 @@ const getAvatarUrl = computed(() => {
             class="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition border-t border-gray-100"
           >
             <LogOut class="w-4 h-4" />
-            退出登录
+            退出
           </button>
         </div>
       </Transition>

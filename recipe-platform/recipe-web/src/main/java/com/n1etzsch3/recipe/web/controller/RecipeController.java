@@ -33,7 +33,7 @@ public class RecipeController {
     /**
      * 获取所有分类列表（公开接口）
      */
-    @Cacheable(value = CacheConstants.CACHE_CATEGORIES, key = "'list'", unless = "#result.data == null")
+    @Cacheable(value = CacheConstants.CACHE_CATEGORIES, key = "'all'", unless = "#result.data == null")
     @GetMapping("/categories")
     public Result<List<RecipeCategory>> listCategories() {
         log.info("获取分类列表");
@@ -66,7 +66,7 @@ public class RecipeController {
      * 创建/发布菜谱（简化版 - 前端提交）
      */
     @Idempotent
-    @RateLimit(time = 60, count = 10, limitType = RateLimit.LimitType.USER)  // 对可能造成的高流量消耗进行限流
+    @RateLimit(time = 60, count = 10, limitType = RateLimit.LimitType.USER) // 对可能造成的高流量消耗进行限流
     @PostMapping
     public Result<?> createRecipe(@RequestBody @Valid SimpleRecipeDTO dto) {
         log.info("收到创建菜谱请求: title={}, category={}", dto.getTitle(), dto.getCategory());
@@ -94,16 +94,47 @@ public class RecipeController {
         RecipePublishDTO publishDTO = new RecipePublishDTO();
         publishDTO.setTitle(dto.getTitle());
         publishDTO.setCoverImage(dto.getCoverImage());
-        publishDTO.setDescription(dto.getContent());
+        publishDTO.setDescription(dto.getDescription());
 
         // 分类转换：使用 CategoryService 动态获取分类ID
         Integer categoryId = categoryService.getIdByName(dto.getCategory());
         publishDTO.setCategoryId(categoryId);
 
-        // 设置空的食材和步骤列表（简化版）
-        // TODO: 前端提交完整结构后，在此映射 ingredients/steps（含排序字段），并移除空列表占位。
-        publishDTO.setIngredients(Collections.emptyList());
-        publishDTO.setSteps(Collections.emptyList());
+        // 映射用料列表
+        if (dto.getIngredients() != null && !dto.getIngredients().isEmpty()) {
+            List<RecipePublishDTO.IngredientDTO> ingredients = dto.getIngredients().stream()
+                    .filter(ing -> ing.getName() != null && !ing.getName().isBlank())
+                    .map(ing -> {
+                        RecipePublishDTO.IngredientDTO ingredientDTO = new RecipePublishDTO.IngredientDTO();
+                        ingredientDTO.setName(ing.getName().trim());
+                        ingredientDTO.setAmount(ing.getAmount() != null ? ing.getAmount().trim() : "适量");
+                        ingredientDTO.setSortOrder(ing.getSortOrder());
+                        return ingredientDTO;
+                    })
+                    .toList();
+            publishDTO.setIngredients(ingredients);
+        } else {
+            publishDTO.setIngredients(Collections.emptyList());
+        }
+
+        // 映射步骤列表
+        if (dto.getSteps() != null && !dto.getSteps().isEmpty()) {
+            List<RecipePublishDTO.StepDTO> steps = new java.util.ArrayList<>();
+            int stepNo = 1;
+            for (SimpleRecipeDTO.StepDTO step : dto.getSteps()) {
+                if (step.getDescription() != null && !step.getDescription().isBlank()) {
+                    RecipePublishDTO.StepDTO stepDTO = new RecipePublishDTO.StepDTO();
+                    stepDTO.setStepNo(step.getStepNo() != null ? step.getStepNo() : stepNo);
+                    stepDTO.setDescription(step.getDescription().trim());
+                    stepDTO.setImageUrl(step.getImageUrl());
+                    steps.add(stepDTO);
+                    stepNo++;
+                }
+            }
+            publishDTO.setSteps(steps);
+        } else {
+            publishDTO.setSteps(Collections.emptyList());
+        }
 
         return publishDTO;
     }
@@ -115,5 +146,23 @@ public class RecipeController {
     public Result<?> unpublishRecipe(@PathVariable Long id) {
         log.info("收到下架菜谱请求: {}", id);
         return recipeService.unpublishRecipe(id);
+    }
+
+    /**
+     * 撤销发布（将待审核状态改为草稿）
+     */
+    @PostMapping("/{id}/withdraw")
+    public Result<?> withdrawRecipe(@PathVariable Long id) {
+        log.info("收到撤销发布请求: {}", id);
+        return recipeService.withdrawRecipe(id);
+    }
+
+    /**
+     * 删除菜谱（用户只能删除自己的菜谱）
+     */
+    @DeleteMapping("/{id}")
+    public Result<?> deleteRecipe(@PathVariable Long id) {
+        log.info("收到删除菜谱请求: {}", id);
+        return recipeService.deleteRecipe(id);
     }
 }

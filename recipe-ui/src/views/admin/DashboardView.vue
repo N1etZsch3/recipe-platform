@@ -656,6 +656,13 @@ onMounted(() => {
                         <p class="text-xs text-gray-400 truncate">{{ recipe.authorName }}</p>
                         <div class="flex gap-1.5 mt-2">
                             <button 
+                                @click="router.push(`/backstage-m9x2k7/recipe/${recipe.id}`)"
+                                class="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+                                title="查看详情"
+                            >
+                                <Eye class="w-4 h-4" />
+                            </button>
+                            <button 
                                 @click="passRecipe(recipe.id)"
                                 class="px-2.5 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition font-medium"
                             >

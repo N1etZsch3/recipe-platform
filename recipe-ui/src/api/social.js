@@ -108,6 +108,15 @@ export function getMyFollows(params) {
     })
 }
 
+// 获取我的粉丝列表
+export function getMyFans(params) {
+    return request({
+        url: '/api/v1/social/fans',
+        method: 'get',
+        params
+    })
+}
+
 
 
 export function getUserProfile(userId) {
@@ -186,5 +195,14 @@ export function checkOnlineStatus(userIds) {
         url: '/api/v1/social/online',
         method: 'get',
         params: { userIds: userIds.join(',') }
+    })
+}
+
+// 搜索用户
+export function searchUsers(keyword) {
+    return request({
+        url: '/api/v1/social/users/search',
+        method: 'get',
+        params: { keyword }
     })
 }

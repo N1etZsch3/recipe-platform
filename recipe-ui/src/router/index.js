@@ -32,6 +32,12 @@ const router = createRouter({
             component: LandingPage
         },
         {
+            path: '/about',
+            name: 'about',
+            component: () => import('../views/AboutView.vue'),
+            meta: { title: '关于我们' }
+        },
+        {
             path: '/home',
             name: 'home',
             component: HomeView
@@ -106,6 +112,16 @@ const router = createRouter({
                     path: 'logs',
                     name: 'admin-logs',
                     component: LogManageView
+                },
+                {
+                    path: 'recipe/:id',
+                    name: 'admin-recipe-preview',
+                    component: () => import('../views/admin/RecipePreviewView.vue')
+                },
+                {
+                    path: 'team',
+                    name: 'admin-team',
+                    component: () => import('../views/admin/TeamManageView.vue')
                 }
             ]
         },

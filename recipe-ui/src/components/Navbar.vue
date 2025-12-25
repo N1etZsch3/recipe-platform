@@ -2,10 +2,12 @@
 import { useUserStore } from '../stores/user'
 import { useRouter, useRoute } from 'vue-router'
 import { computed, inject, ref, onMounted, onUnmounted } from 'vue'
-import { LogOut, ChefHat, MessageSquare, Menu, X, Home, Compass, User, Bell } from 'lucide-vue-next'
+import { LogOut, ChefHat, MessageSquare, Menu, X, Home, Compass, User, Bell, Search, UserPlus, UserMinus, MessageCircle, Loader2 } from 'lucide-vue-next'
 import { useToast } from './Toast.vue'
 import { useNotificationStore } from '@/stores/notification'
 import NotificationCenter from '@/components/NotificationCenter.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
+import { searchUsers, followUser, unfollowUser } from '@/api/social'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -17,14 +19,14 @@ const notificationStore = useNotificationStore()
 const isLoginPage = computed(() => route.name === 'login')
 const isOpen = ref(false)
 const showNotifications = ref(false)
+const showSearch = ref(false)
+const searchKeyword = ref('')
+const searchResults = ref([])
+const loadingSearch = ref(false)
+let searchTimeout = null
 
 // 未读通知数
 const unreadCount = computed(() => notificationStore.unreadCount)
-
-// 最近通知列表（最多显示8条）
-const recentNotifications = computed(() => {
-  return notificationStore.notifications.slice(0, 8)
-})
 
 const handleLogout = async () => {
   if (await confirm('确定要退出登录吗？')) {
@@ -39,11 +41,79 @@ const toggleMenu = () => {
 
 const toggleNotifications = () => {
   showNotifications.value = !showNotifications.value
+  if (showNotifications.value) showSearch.value = false
 }
 
-// 关闭通知面板
 const closeNotifications = () => {
   showNotifications.value = false
+}
+
+const toggleSearch = () => {
+  showSearch.value = !showSearch.value
+  if (showSearch.value) {
+    showNotifications.value = false
+    // Reset search when opening
+    if (!searchKeyword.value) searchResults.value = []
+    
+    // Auto focus input (next tick)
+    setTimeout(() => {
+        const input = document.querySelector('#search-panel input')
+        if (input) input.focus()
+    }, 100)
+  }
+}
+
+const handleSearch = () => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  
+  if (!searchKeyword.value.trim()) {
+    searchResults.value = []
+    return
+  }
+
+  loadingSearch.value = true
+  searchTimeout = setTimeout(async () => {
+    try {
+      const res = await searchUsers(searchKeyword.value)
+      searchResults.value = res.data || []
+    } catch (error) {
+      console.error(error)
+    } finally {
+      loadingSearch.value = false
+    }
+  }, 300)
+}
+
+const goToProfile = (userId) => {
+    showSearch.value = false
+    router.push(`/user/${userId}`)
+}
+
+const toggleFollowUser = async (user) => {
+    try {
+        if (user.isFollow) {
+            await unfollowUser(user.id)
+            user.isFollow = false
+            showToast('已取消关注')
+        } else {
+            await followUser(user.id)
+            user.isFollow = true
+            showToast('关注成功')
+        }
+    } catch (error) {
+        // Error handled by request interceptor usually
+    }
+}
+
+const sendMessageToUser = (user) => {
+    showSearch.value = false
+    router.push({
+        path: '/messages',
+        query: {
+            chatWith: user.id,
+            chatName: user.nickname || user.username
+        }
+    })
 }
 
 // 点击通知
@@ -104,10 +174,16 @@ const isActive = (path) => {
 
 // 点击外部关闭通知面板
 const handleClickOutside = (e) => {
-  const panel = document.getElementById('notification-panel')
-  const btn = document.getElementById('notification-btn')
-  if (panel && !panel.contains(e.target) && btn && !btn.contains(e.target)) {
+  const notifPanel = document.getElementById('notification-panel')
+  const notifBtn = document.getElementById('notification-btn')
+  if (notifPanel && !notifPanel.contains(e.target) && notifBtn && !notifBtn.contains(e.target)) {
     showNotifications.value = false
+  }
+
+  const searchPanel = document.getElementById('search-panel')
+  const searchBtn = document.getElementById('search-btn')
+  if (searchPanel && !searchPanel.contains(e.target) && searchBtn && !searchBtn.contains(e.target)) {
+    showSearch.value = false
   }
 }
 
@@ -218,6 +294,97 @@ onUnmounted(() => {
         <!-- 右侧: 用户区域 -->
         <div class="flex items-center gap-3">
           <template v-if="userStore.user">
+             <!-- 搜索用户图标 + 下拉面板 -->
+            <div class="relative">
+              <button 
+                id="search-btn"
+                @click="toggleSearch"
+                class="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                title="搜索用户"
+              >
+                <Search class="w-5 h-5" />
+              </button>
+
+              <!-- 搜索下拉面板 -->
+              <Transition
+                enter-active-class="transition duration-200 ease-out"
+                enter-from-class="opacity-0 scale-95 -translate-y-2"
+                enter-to-class="opacity-100 scale-100 translate-y-0"
+                leave-active-class="transition duration-150 ease-in"
+                leave-from-class="opacity-100 scale-100 translate-y-0"
+                leave-to-class="opacity-0 scale-95 -translate-y-2"
+              >
+                <div 
+                  v-if="showSearch"
+                  id="search-panel"
+                  class="absolute right-0 top-full mt-2 z-50 w-80 bg-white rounded-xl shadow-xl border border-gray-100 p-4"
+                >
+                   <input 
+                    v-model="searchKeyword"
+                    @input="handleSearch"
+                    type="text" 
+                    placeholder="搜索用户名或昵称..." 
+                    class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all mb-3"
+                    autofocus
+                  >
+                  
+                  <div v-if="loadingSearch" class="flex justify-center py-4 text-gray-400">
+                    <Loader2 class="w-5 h-5 animate-spin" />
+                  </div>
+
+                  <div v-else-if="searchResults.length > 0" class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
+                    <div v-for="user in searchResults" :key="user.id" class="flex items-center justify-between group">
+                      <div 
+                        class="flex items-center gap-2 cursor-pointer"
+                        @click="goToProfile(user.id)"
+                      >
+                         <UserAvatar 
+                          :src="user.avatar" 
+                          :name="user.nickname || user.username"
+                          class="w-8 h-8 flex-shrink-0"
+                        />
+                        <div class="overflow-hidden">
+                          <p class="text-sm font-medium text-gray-800 truncate w-24" :title="user.nickname || user.username">{{ user.nickname || user.username }}</p>
+                        </div>
+                      </div>
+                      
+                      <div class="flex items-center gap-1 opacity-100 transition-opacity">
+                         <button 
+                          v-if="user.id !== userStore.user?.id"
+                          @click.stop.prevent="toggleFollowUser(user)"
+                          :class="[
+                            'p-1.5 rounded-md transition-colors',
+                            user.isFollow 
+                              ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' 
+                              : 'text-orange-500 hover:bg-orange-50'
+                          ]"
+                          :title="user.isFollow ? '取消关注' : '关注'"
+                        >
+                          <UserMinus v-if="user.isFollow" class="w-4 h-4" />
+                          <UserPlus v-else class="w-4 h-4" />
+                        </button>
+                        <button 
+                          v-if="user.id !== userStore.user?.id"
+                          @click.stop.prevent="sendMessageToUser(user)"
+                          class="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
+                          title="发私信"
+                        >
+                          <MessageCircle class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-else-if="searchKeyword && !loadingSearch" class="text-center py-6 text-gray-400 text-sm">
+                    未找到相关用户
+                  </div>
+                   <div v-else class="text-center py-6 text-gray-400 text-sm">
+                    输入关键词搜索用户
+                  </div>
+                </div>
+              </Transition>
+            </div>
+
             <!-- 通知图标 + 下拉面板 -->
             <div class="relative">
               <button 
@@ -247,7 +414,7 @@ onUnmounted(() => {
                 <div 
                   v-if="showNotifications"
                   id="notification-panel"
-                  class="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50"
+                  class="absolute right-0 top-full mt-2 z-50 w-80"
                 >
                   <NotificationCenter 
                     :show-todo="false"
@@ -261,9 +428,10 @@ onUnmounted(() => {
             
             <!-- 用户信息 -->
             <div class="hidden md:flex items-center gap-3 pl-3 border-l border-gray-200">
-              <img 
-                :src="userStore.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userStore.user.id}`" 
-                class="w-9 h-9 rounded-full ring-2 ring-gray-100 object-cover"
+              <UserAvatar 
+                :src="userStore.user.avatar" 
+                :name="userStore.user.nickname || userStore.user.username"
+                class="w-9 h-9 ring-2 ring-gray-100"
               />
               <div class="flex flex-col">
                 <span class="text-sm font-medium text-gray-800 leading-tight">
@@ -345,9 +513,10 @@ onUnmounted(() => {
           <template v-else>
             <!-- 用户信息卡片 -->
             <div class="flex items-center gap-3 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl mb-3">
-              <img 
-                :src="userStore.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userStore.user.id}`" 
-                class="w-12 h-12 rounded-full ring-2 ring-white shadow"
+              <UserAvatar 
+                :src="userStore.user.avatar" 
+                :name="userStore.user.nickname || userStore.user.username"
+                class="w-12 h-12 ring-2 ring-white shadow"
               />
               <div>
                 <p class="font-semibold text-gray-800">{{ userStore.user.nickname || userStore.user.username }}</p>

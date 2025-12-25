@@ -31,9 +31,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.n1etzsch3.recipe.common.constant.CacheConstants;
 import com.n1etzsch3.recipe.common.constant.RecipeConstants;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.StringUtils;
 
 @Slf4j
@@ -49,6 +52,7 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
     private final com.n1etzsch3.recipe.business.mapper.UserFollowMapper followMapper;
     private final CategoryService categoryService;
     private final NotificationService notificationService;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -59,11 +63,21 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
             return Result.fail("未登录");
         }
 
+        // 检查用户待审核菜谱数量限制
+        long pendingCount = this.count(new LambdaQueryWrapper<RecipeInfo>()
+                .eq(RecipeInfo::getUserId, userId)
+                .in(RecipeInfo::getStatus,
+                        RecipeConstants.STATUS_PENDING,
+                        RecipeConstants.STATUS_PROCESSING));
+        if (pendingCount >= RecipeConstants.MAX_PENDING_RECIPES) {
+            return Result.fail("您有太多待审核的菜谱（最多 " + RecipeConstants.MAX_PENDING_RECIPES + " 个），请等待审核后再发布");
+        }
+
         // 1. 保存基本信息
         RecipeInfo recipe = new RecipeInfo();
         BeanUtil.copyProperties(publishDTO, recipe);
         recipe.setUserId(userId);
-        recipe.setStatus(RecipeConstants.STATUS_PENDING); // 待审核
+        recipe.setStatus(RecipeConstants.STATUS_PROCESSING); // 处理中（队列处理阶段）
         recipe.setViewCount(0);
         recipe.setCreateTime(LocalDateTime.now());
         recipe.setUpdateTime(LocalDateTime.now());
@@ -80,8 +94,6 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
                 entity.setRecipeId(recipeId);
                 return entity;
             }).collect(Collectors.toList());
-            // 批量保存食材? MyBatisPlus ServiceImpl 没有直接 batch save different entity?
-            // 这里为了简单，且数量不多，直接循环 insert 或者用 mapper
             ingredients.forEach(ingredientMapper::insert);
         }
 
@@ -96,13 +108,29 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
             steps.forEach(stepMapper::insert);
         }
 
-        // 4. 通知所有管理员有新菜谱待审核
-        // FIXME：这里会不会有竞态条件（例如多个管理员同时审批同一个菜谱），或者管理员过多时的性能问题？
-        SysUser author = sysUserMapper.selectById(userId);
-        String authorName = author != null ? author.getNickname() : "用户" + userId;
-        notificationService.sendNewRecipePending(recipeId, publishDTO.getTitle(), userId, authorName);
+        // 4. 写入 Redis Stream 队列，异步处理
+        try {
+            stringRedisTemplate.opsForStream().add(
+                    CacheConstants.STREAM_RECIPE_PUBLISH,
+                    Map.of(
+                            "recipeId", recipeId.toString(),
+                            "userId", userId.toString(),
+                            "timestamp", String.valueOf(System.currentTimeMillis())));
+            log.info("菜谱已提交到处理队列: recipeId={}, title={}", recipeId, publishDTO.getTitle());
+        } catch (Exception e) {
+            // 队列写入失败时，回退到直接审核模式
+            log.warn("写入队列失败，回退到直接审核模式: {}", e.getMessage());
+            recipe.setStatus(RecipeConstants.STATUS_PENDING);
+            this.updateById(recipe);
 
-        return Result.ok("发布成功，等待审核");
+            SysUser author = sysUserMapper.selectById(userId);
+            String authorName = author != null ? author.getNickname() : "用户" + userId;
+            notificationService.sendNewRecipePending(recipeId, publishDTO.getTitle(), userId, authorName);
+        }
+
+        return Result.ok(Map.of(
+                "recipeId", recipeId,
+                "message", "已提交，正在处理中..."));
     }
 
     @Override
@@ -394,5 +422,31 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
         this.updateById(recipe);
 
         return Result.ok("下架成功，您现在可以编辑菜谱了");
+    }
+
+    @Override
+    public Result<?> withdrawRecipe(Long id) {
+        Long userId = UserContext.getUserId();
+        log.info("用户 {} 撤销发布菜谱: {}", userId, id);
+        RecipeInfo recipe = this.getById(id);
+        if (recipe == null) {
+            return Result.fail("菜谱不存在");
+        }
+        if (!recipe.getUserId().equals(userId)) {
+            return Result.fail("无权操作");
+        }
+
+        // 只有待审核或处理中状态才能撤销
+        if (recipe.getStatus() != RecipeConstants.STATUS_PENDING
+                && recipe.getStatus() != RecipeConstants.STATUS_PROCESSING) {
+            return Result.fail("只有待审核的菜谱才能撤销发布");
+        }
+
+        // 将状态改为草稿
+        recipe.setStatus(RecipeConstants.STATUS_DRAFT);
+        recipe.setUpdateTime(LocalDateTime.now());
+        this.updateById(recipe);
+
+        return Result.ok("已撤销发布，菜谱已保存为草稿");
     }
 }

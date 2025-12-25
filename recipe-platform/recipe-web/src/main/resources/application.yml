@@ -61,3 +61,11 @@ management:
   info:
     env:
       enabled: true
+
+# 菜谱清理配置
+recipe:
+  cleanup:
+    # 被驳回菜谱保留天数
+    rejected-days: 30
+    # 草稿菜谱保留天数
+    draft-days: 90

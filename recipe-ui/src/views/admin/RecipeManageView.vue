@@ -88,7 +88,7 @@ const handlePageChange = (page) => {
 
 // 查看菜谱详情
 const viewRecipe = (id) => {
-    window.open(`/recipe/${id}`, '_blank')
+    router.push(`/backstage-m9x2k7/recipe/${id}`)
 }
 
 // 审核操作

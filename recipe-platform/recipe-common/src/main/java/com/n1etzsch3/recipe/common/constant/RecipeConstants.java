@@ -11,6 +11,15 @@ public class RecipeConstants {
     /** 状态：驳回 */
     public static final int STATUS_REJECTED = 2;
 
+    /** 状态：草稿 */
+    public static final int STATUS_DRAFT = 3;
+
+    /** 状态：处理中（队列处理阶段） */
+    public static final int STATUS_PROCESSING = 4;
+
+    /** 用户待审核菜谱最大数量 */
+    public static final int MAX_PENDING_RECIPES = 10;
+
     /** 排序：最新 */
     public static final String SORT_NEW = "new";
 

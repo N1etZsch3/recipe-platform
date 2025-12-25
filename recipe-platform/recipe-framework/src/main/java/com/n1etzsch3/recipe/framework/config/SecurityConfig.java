@@ -52,6 +52,7 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**", "/ws").permitAll() // WebSocket 端点（Token 在连接时验证）
                         .requestMatchers(HttpMethod.GET, "/api/v1/recipes/**").permitAll() // 浏览菜谱
                         .requestMatchers(HttpMethod.GET, "/api/v1/interactions/comments/**").permitAll() // 浏览评论
+                        .requestMatchers(HttpMethod.GET, "/api/v1/team/**").permitAll() // 团队成员公开接口
                         .requestMatchers("/doc.html", "/webjars/**", "/v3/api-docs/**").permitAll() // Swagger
 
                         // 2. 管理员 (Admin) - admin接口需要admin或common_admin角色
