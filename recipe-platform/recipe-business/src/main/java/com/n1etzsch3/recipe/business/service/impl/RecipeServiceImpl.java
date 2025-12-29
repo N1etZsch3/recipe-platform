@@ -28,6 +28,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -93,7 +95,7 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
                 BeanUtil.copyProperties(item, entity);
                 entity.setRecipeId(recipeId);
                 return entity;
-            }).collect(Collectors.toList());
+            }).toList();
             ingredients.forEach(ingredientMapper::insert);
         }
 
@@ -108,26 +110,32 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
             steps.forEach(stepMapper::insert);
         }
 
-        // 4. 写入 Redis Stream 队列，异步处理
-        try {
-            stringRedisTemplate.opsForStream().add(
-                    CacheConstants.STREAM_RECIPE_PUBLISH,
-                    Map.of(
-                            "recipeId", recipeId.toString(),
-                            "userId", userId.toString(),
-                            "timestamp", String.valueOf(System.currentTimeMillis())));
-            log.info("菜谱已提交到处理队列: recipeId={}, title={}", recipeId, publishDTO.getTitle());
-        } catch (Exception e) {
-            // 队列写入失败时，回退到直接审核模式
-            log.warn("写入队列失败，回退到直接审核模式: {}", e.getMessage());
-            recipe.setStatus(RecipeConstants.STATUS_PENDING);
-            this.updateById(recipe);
+        // 4. 写入 Redis Stream 队列，异步处理 (使用事务同步，确保 DB 事务提交后再发消息)
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    stringRedisTemplate.opsForStream().add(
+                            CacheConstants.STREAM_RECIPE_PUBLISH,
+                            Map.of(
+                                    "recipeId", recipeId.toString(),
+                                    "userId", userId.toString(),
+                                    "timestamp", String.valueOf(System.currentTimeMillis())));
+                    log.info("菜谱已提交到处理队列: recipeId={}, title={}", recipeId, publishDTO.getTitle());
+                } catch (Exception e) {
+                    // 队列写入失败时，回退到直接审核模式
+                    log.warn("写入队列失败，回退到直接审核模式: {}", e.getMessage());
+                    // 注意：此时原事务已提交，这里是新的独立操作
+                    recipe.setStatus(RecipeConstants.STATUS_PENDING);
+                    RecipeServiceImpl.this.updateById(recipe);
 
-            SysUser author = sysUserMapper.selectById(userId);
-            String authorName = author != null ? author.getNickname() : "用户" + userId;
-            notificationService.sendNewRecipePending(recipeId, publishDTO.getTitle(), userId, authorName,
-                    recipe.getCoverImage());
-        }
+                    SysUser author = sysUserMapper.selectById(userId);
+                    String authorName = author != null ? author.getNickname() : "用户" + userId;
+                    notificationService.sendNewRecipePending(recipeId, publishDTO.getTitle(), userId, authorName,
+                            recipe.getCoverImage());
+                }
+            }
+        });
 
         return Result.ok(Map.of(
                 "recipeId", recipeId,

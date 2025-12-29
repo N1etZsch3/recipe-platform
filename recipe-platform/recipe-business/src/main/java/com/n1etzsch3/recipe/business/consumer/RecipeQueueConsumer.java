@@ -53,7 +53,7 @@ public class RecipeQueueConsumer {
         try {
             // 创建 Stream（如果不存在）
             Boolean hasKey = redisTemplate.hasKey(STREAM_KEY);
-            if (Boolean.FALSE.equals(hasKey)) {
+            if (!hasKey) {
                 // 添加一条初始消息来创建 Stream，然后立即删除
                 redisTemplate.opsForStream().add(STREAM_KEY, Map.of("init", "true"));
                 log.info("创建 Redis Stream: {}", STREAM_KEY);
@@ -190,6 +190,13 @@ public class RecipeQueueConsumer {
      * 确认消息已处理
      */
     private void acknowledge(MapRecord<String, Object, Object> record) {
-        redisTemplate.opsForStream().acknowledge(STREAM_KEY, GROUP_NAME, record.getId());
+        try {
+            redisTemplate.opsForStream().acknowledge(STREAM_KEY, GROUP_NAME, record.getId());
+            // 处理完成后删除消息，防止队列堆积
+            Long deleted = redisTemplate.opsForStream().delete(STREAM_KEY, record.getId().getValue());
+            log.info("已确认消息: {}, 删除结果: {}", record.getId().getValue(), deleted);
+        } catch (Exception e) {
+            log.error("确认或删除消息失败: {}", record.getId(), e);
+        }
     }
 }
