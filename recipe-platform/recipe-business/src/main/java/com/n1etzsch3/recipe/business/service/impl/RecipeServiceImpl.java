@@ -125,7 +125,8 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
 
             SysUser author = sysUserMapper.selectById(userId);
             String authorName = author != null ? author.getNickname() : "用户" + userId;
-            notificationService.sendNewRecipePending(recipeId, publishDTO.getTitle(), userId, authorName);
+            notificationService.sendNewRecipePending(recipeId, publishDTO.getTitle(), userId, authorName,
+                    recipe.getCoverImage());
         }
 
         return Result.ok(Map.of(
@@ -144,7 +145,9 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
 
         LoginUser loginUser = UserContext.get();
         Long currentUserId = loginUser != null ? loginUser.getId() : null;
-        boolean isAdmin = loginUser != null && UserConstants.ROLE_ADMIN.equals(loginUser.getRole());
+        boolean isAdmin = loginUser != null &&
+                (UserConstants.ROLE_ADMIN.equals(loginUser.getRole()) ||
+                        UserConstants.ROLE_COMMON_ADMIN.equals(loginUser.getRole()));
         boolean isOwner = currentUserId != null && currentUserId.equals(recipe.getUserId());
         if (!Integer.valueOf(RecipeConstants.STATUS_PUBLISHED).equals(recipe.getStatus()) && !isOwner && !isAdmin) {
             return Result.fail("菜谱不存在");
@@ -380,6 +383,12 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
             });
         }
 
+        // 发送待审核通知
+        SysUser author = sysUserMapper.selectById(userId);
+        String authorName = author != null ? author.getNickname() : "用户" + userId;
+        notificationService.sendNewRecipePending(recipeId, publishDTO.getTitle(), userId, authorName,
+                recipe.getCoverImage());
+
         return Result.ok("修改成功，请等待审核");
     }
 
@@ -394,10 +403,19 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
         if (!recipe.getUserId().equals(userId))
             return Result.fail("无权删除");
 
+        // 如果是待审核状态，通知管理员移除
+        boolean checkPending = recipe.getStatus() == RecipeConstants.STATUS_PENDING;
+
         this.removeById(id);
         // 级联删除 steps ingredients?
         ingredientMapper.delete(new LambdaQueryWrapper<RecipeIngredient>().eq(RecipeIngredient::getRecipeId, id));
         stepMapper.delete(new LambdaQueryWrapper<RecipeStep>().eq(RecipeStep::getRecipeId, id));
+
+        if (checkPending) {
+            SysUser author = sysUserMapper.selectById(userId);
+            String authorName = author != null ? author.getNickname() : "用户" + userId;
+            notificationService.sendRecipeWithdrawn(id, recipe.getTitle(), userId, authorName);
+        }
 
         return Result.ok("删除成功");
     }
@@ -420,6 +438,11 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
         // 将状态改为待审核
         recipe.setStatus(RecipeConstants.STATUS_PENDING);
         this.updateById(recipe);
+
+        // 下架变成待审核，也应该通知管理员
+        SysUser author = sysUserMapper.selectById(userId);
+        String authorName = author != null ? author.getNickname() : "用户" + userId;
+        notificationService.sendNewRecipePending(id, recipe.getTitle(), userId, authorName, recipe.getCoverImage());
 
         return Result.ok("下架成功，您现在可以编辑菜谱了");
     }
@@ -446,6 +469,11 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
         recipe.setStatus(RecipeConstants.STATUS_DRAFT);
         recipe.setUpdateTime(LocalDateTime.now());
         this.updateById(recipe);
+
+        // 发送撤销通知
+        SysUser author = sysUserMapper.selectById(userId);
+        String authorName = author != null ? author.getNickname() : "用户" + userId;
+        notificationService.sendRecipeWithdrawn(id, recipe.getTitle(), userId, authorName);
 
         return Result.ok("已撤销发布，菜谱已保存为草稿");
     }

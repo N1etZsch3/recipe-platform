@@ -31,4 +31,14 @@ public interface AdminLogService {
     Result<IPage<AdminOperationLogDTO>> pageLogs(Integer page, Integer size,
             String operationType, Long adminId,
             String startDate, String endDate);
+
+    /**
+     * 记录登录日志（用于登录场景，不依赖 SecurityContext）
+     *
+     * @param adminId   管理员ID（成功时有值，失败时可为null）
+     * @param adminName 账号名（用户名）
+     * @param success   是否登录成功
+     * @param detail    详细信息
+     */
+    void logLogin(Long adminId, String adminName, boolean success, String detail);
 }

@@ -422,7 +422,7 @@ onMounted(() => {
                                     :src="recipe.coverImage" 
                                     class="w-16 h-12 rounded-lg object-cover bg-gray-100 mx-auto cursor-pointer hover:scale-105 transition"
                                     @click.stop="viewRecipe(recipe.id)"
-                                    @error="e => e.target.src = 'https://via.placeholder.com/64'"
+                                    @error="e => e.target.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22%3E%3Crect fill=%22%23f3f4f6%22 width=%2264%22 height=%2264%22/%3E%3Ctext x=%2232%22 y=%2236%22 text-anchor=%22middle%22 fill=%22%239ca3af%22 font-size=%2212%22%3E暂无%3C/text%3E%3C/svg%3E'"
                                     :title="'点击查看: ' + recipe.title"
                                 />
                             </td>

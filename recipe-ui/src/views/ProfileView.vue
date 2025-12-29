@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { useNotificationStore } from '@/stores/notification'
 import { useToast } from '../components/Toast.vue'
 import { useModal } from '@/composables/useModal'
 import { listRecipies, deleteRecipe as deleteRecipeApi, unpublishRecipe as unpublishRecipeApi, withdrawRecipe as withdrawRecipeApi } from '@/api/recipe'
@@ -15,8 +16,10 @@ import UserAvatar from '@/components/UserAvatar.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
+const notificationStore = useNotificationStore()
 const { showToast } = useToast()
 const { confirm } = useModal()
+
 
 const activeProfileTab = ref('recipes')
 const chatTarget = ref(null)
@@ -41,6 +44,12 @@ const avatarInput = ref(null)
 const uploadingAvatar = ref(false)
 const savingProfile = ref(false)
 const profileForm = ref({
+    nickname: '',
+    avatar: '',
+    intro: ''
+})
+// 原始资料副本（用于取消修改）
+const originalProfile = ref({
     nickname: '',
     avatar: '',
     intro: ''
@@ -97,11 +106,13 @@ const handlePasswordChange = async () => {
 const loadProfile = async () => {
     try {
         const userData = await getProfile()
-        profileForm.value = {
+        const profileData = {
             nickname: userData.nickname || '',
             avatar: userData.avatar || '',
             intro: userData.intro || ''
         }
+        profileForm.value = { ...profileData }
+        originalProfile.value = { ...profileData } // 保存原始副本
         // 同步更新 userStore 中的头像和昵称
         if (userStore.user) {
             userStore.setUser({
@@ -113,6 +124,11 @@ const loadProfile = async () => {
     } catch (error) {
         console.error('Failed to load profile', error)
     }
+}
+
+// 取消修改，恢复原始数据
+const cancelEdit = () => {
+    profileForm.value = { ...originalProfile.value }
 }
 
 // 触发头像上传
@@ -170,6 +186,8 @@ const saveProfile = async () => {
                 avatar: profileForm.value.avatar
             })
         }
+        // 更新原始数据副本
+        originalProfile.value = { ...profileForm.value }
         showToast('保存成功')
     } catch (error) {
         console.error(error)
@@ -292,6 +310,29 @@ watch(activeProfileTab, (newTab) => {
         loadMyFollows()
     } else if (newTab === 'fans') {
         loadMyFans()
+    }
+})
+
+// 监听菜谱审核通知，实时更新状态
+watch(() => notificationStore.latestNotification, (notification) => {
+    if (!notification) return
+    
+    if (notification.type === 'RECIPE_APPROVED' || notification.type === 'RECIPE_REJECTED') {
+        // 本地增量更新：找到对应菜谱并更新状态，无需重新请求API
+        const recipeId = notification.relatedId
+        const recipe = myRecipes.value.find(r => r.id === recipeId)
+        if (recipe) {
+            if (notification.type === 'RECIPE_APPROVED') {
+                recipe.status = 1 // 已发布
+                recipe.rejectReason = null
+            } else {
+                recipe.status = 2 // 已驳回
+                // 从通知内容中提取驳回原因
+                const match = notification.content?.match(/原因[：:]\s*(.+)$/)
+                recipe.rejectReason = match ? match[1] : null
+            }
+            console.log('ProfileView: 已更新菜谱状态', recipeId, notification.type)
+        }
     }
 })
 
@@ -666,15 +707,21 @@ const withdrawRecipe = async (id) => {
                            ></textarea>
                        </div>
                        
-                       <!-- 保存按钮 -->
-                       <div class="pt-6">
+                       <!-- 操作按钮 -->
+                       <div class="pt-6 flex gap-3">
                            <button 
                                @click="saveProfile" 
                                :disabled="savingProfile"
-                               class="w-full md:w-auto bg-gradient-to-r from-orange-500 to-red-500 text-white px-10 py-3 rounded-xl hover:from-orange-600 hover:to-red-600 font-bold shadow-lg shadow-orange-200/50 transition disabled:opacity-70 disabled:grayscale flex items-center justify-center gap-2 transform active:scale-[0.98]"
+                               class="bg-gradient-to-r from-orange-500 to-red-500 text-white px-10 py-3 rounded-xl hover:from-orange-600 hover:to-red-600 font-bold shadow-lg shadow-orange-200/50 transition disabled:opacity-70 disabled:grayscale flex items-center justify-center gap-2 transform active:scale-[0.98]"
                            >
                                <div v-if="savingProfile" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                {{ savingProfile ? '正在保存...' : '保存修改' }}
+                           </button>
+                           <button 
+                               @click="cancelEdit"
+                               class="px-6 py-3 text-gray-600 bg-gray-100 hover:bg-gray-200 font-medium rounded-xl transition"
+                           >
+                               取消修改
                            </button>
                        </div>
                        

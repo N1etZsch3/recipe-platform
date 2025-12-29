@@ -42,10 +42,8 @@ const updateColumnCount = () => {
     columnCount.value = 2
   } else if (width < 1024) {
     columnCount.value = 3
-  } else if (width < 1280) {
-    columnCount.value = 4
   } else {
-    columnCount.value = 5
+    columnCount.value = 4
   }
 }
 
@@ -225,6 +223,15 @@ watch(loadingMore, (val) => {
   }
 })
 
+// 监听路由 keyword 参数变化
+watch(
+  () => route.query.keyword,
+  (newKeyword) => {
+    searchQuery.value = newKeyword || ''
+    resetAndFetch()
+  }
+)
+
 onMounted(() => {
   updateColumnCount()
   initColumns()
@@ -232,9 +239,12 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
   
   setupIntersectionObserver()
-  if (!route.query.keyword) {
-    fetchRecipes()
+  
+  // 初始化时读取 URL 中的搜索关键词
+  if (route.query.keyword) {
+    searchQuery.value = route.query.keyword
   }
+  fetchRecipes()
 })
 
 onUnmounted(() => {

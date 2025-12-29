@@ -75,8 +75,10 @@ public interface NotificationService {
          * @param recipeTitle 菜谱标题
          * @param authorId    作者ID
          * @param authorName  作者昵称
+         * @param coverImage  菜谱封面图
          */
-        void sendNewRecipePending(Long recipeId, String recipeTitle, Long authorId, String authorName);
+        void sendNewRecipePending(Long recipeId, String recipeTitle, Long authorId, String authorName,
+                        String coverImage);
 
         /**
          * 发送评论被回复通知
@@ -121,6 +123,16 @@ public interface NotificationService {
          * @param userId 离线的用户ID
          */
         void broadcastUserOffline(Long userId);
+
+        /**
+         * 发送菜谱撤销/删除通知给所有管理员
+         *
+         * @param recipeId    菜谱ID
+         * @param recipeTitle 菜谱标题
+         * @param authorId    作者ID
+         * @param authorName  作者昵称
+         */
+        void sendRecipeWithdrawn(Long recipeId, String recipeTitle, Long authorId, String authorName);
 
         /**
          * 广播消息给所有在线管理员

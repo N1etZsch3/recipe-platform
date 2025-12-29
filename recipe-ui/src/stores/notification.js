@@ -61,6 +61,11 @@ export const useNotificationStore = defineStore('notification', () => {
             window.dispatchEvent(new CustomEvent('admin-new-comment', { detail: message }))
         }
 
+        // 菜谱撤销/删除通知
+        if (message.type === 'RECIPE_WITHDRAWN') {
+            window.dispatchEvent(new CustomEvent('admin-recipe-withdrawn', { detail: message }))
+        }
+
         // 创建通知对象
         const notification = {
             id: Date.now() + Math.random(), // 确保唯一性

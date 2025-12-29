@@ -42,7 +42,7 @@ onMounted(() => {
 
 const handleLogin = async () => {
     if (!form.value.username.trim() || !form.value.password.trim()) {
-        showToast('请输入用户名和密码')
+        showToast('请输入管理员账号和密码')
         return
     }
     

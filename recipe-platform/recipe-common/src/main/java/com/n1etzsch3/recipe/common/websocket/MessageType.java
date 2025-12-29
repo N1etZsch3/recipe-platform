@@ -75,5 +75,10 @@ public enum MessageType {
     /**
      * 新评论（通知管理员）
      */
-    ADMIN_NEW_COMMENT
+    ADMIN_NEW_COMMENT,
+
+    /**
+     * 菜谱撤销审核/删除（通知管理员）
+     */
+    RECIPE_WITHDRAWN
 }

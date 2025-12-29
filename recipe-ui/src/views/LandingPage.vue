@@ -154,13 +154,6 @@ const features = [
               >
                 开始探索
               </button>
-              <button 
-                @click="router.push('/login')"
-                class="px-8 py-4 bg-white border-2 border-orange-400 text-orange-600 rounded-full font-bold text-lg hover:bg-orange-500 hover:text-white hover:border-orange-500 transition flex items-center justify-center gap-2 transform active:scale-95 shadow-md"
-              >
-                <LogIn class="w-5 h-5" />
-                登录 / 注册
-              </button>
             </div>
             
             <!-- 关于我们入口 -->

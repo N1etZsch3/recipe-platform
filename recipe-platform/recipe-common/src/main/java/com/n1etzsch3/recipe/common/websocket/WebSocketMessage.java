@@ -52,6 +52,11 @@ public class WebSocketMessage {
     private String senderAvatar;
 
     /**
+     * 消息附带图片 (如菜谱封面、评论图片等)
+     */
+    private String imageUrl;
+
+    /**
      * 时间戳
      */
     private LocalDateTime timestamp;

@@ -48,12 +48,16 @@ watch(() => userStore.token, (newToken, oldToken) => {
     // 用户登录，建立 WebSocket 连接
     console.log('App: 用户登录，建立 WebSocket 连接')
     wsManager.connect()
+  } else if (newToken && !wsManager.isConnected()) {
+    // token 存在但 WebSocket 未连接（可能是页面刷新后 token 从 localStorage 恢复）
+    console.log('App: Token 存在但 WebSocket 未连接，尝试连接')
+    wsManager.connect()
   } else if (!newToken && oldToken) {
     // 用户登出，关闭 WebSocket 连接
     console.log('App: 用户登出，关闭 WebSocket 连接')
     wsManager.close()
   }
-})
+}, { immediate: true })
 
 // 组件挂载时，如果已登录则建立连接
 onMounted(() => {
@@ -77,6 +81,8 @@ onUnmounted(() => {
         <component :is="Component" />
       </Transition>
     </RouterView>
+    <!-- 管理后台也需要实时通知 Toast -->
+    <NotificationToast />
   </div>
   
   <!-- 着陆页、登录页使用独立全屏布局 -->

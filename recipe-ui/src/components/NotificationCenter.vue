@@ -237,7 +237,7 @@ const handleViewAll = () => {
                             class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition"
                         >
                             <img 
-                                :src="item.senderAvatar || 'https://via.placeholder.com/40'"
+                                :src="item.senderAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.senderId}`"
                                 class="w-10 h-10 rounded-full object-cover flex-shrink-0"
                             />
                             <div class="flex-1 min-w-0">

@@ -40,6 +40,7 @@ public class AdminOperationLogDTO {
             return "";
         return switch (type) {
             case "ADMIN_LOGIN" -> "管理员登录";
+            case "ADMIN_LOGIN_FAILED" -> "管理员登录失败";
             case "USER_BAN" -> "封禁用户";
             case "USER_UNBAN" -> "解封用户";
             case "RECIPE_APPROVE" -> "审核通过菜谱";

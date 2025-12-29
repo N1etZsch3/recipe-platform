@@ -2,7 +2,9 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getRecipeDetail } from '@/api/recipe'
+import { auditRecipe, listComments } from '@/api/admin'
 import { useToast } from '@/components/Toast.vue'
+import { useModal } from '@/composables/useModal'
 import { 
     ArrowLeft, 
     Clock, 
@@ -10,16 +12,23 @@ import {
     ChefHat,
     Check,
     X,
-    AlertCircle
+    AlertCircle,
+    MessageSquare
 } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
 const { showToast } = useToast()
+const { confirm, prompt } = useModal()
 
 const loading = ref(true)
 const recipe = ref(null)
 const error = ref(null)
+const auditing = ref(false)
+
+// 评论相关
+const comments = ref([])
+const loadingComments = ref(false)
 
 // 状态映射
 const statusMap = {
@@ -31,6 +40,9 @@ const statusMap = {
 }
 
 const statusInfo = computed(() => statusMap[recipe.value?.status] || statusMap[0])
+
+// 是否待审核状态
+const isPending = computed(() => recipe.value?.status === 0)
 
 const formatDate = (dateStr) => {
     if (!dateStr) return '-'
@@ -51,6 +63,8 @@ const fetchRecipe = async () => {
         const res = await getRecipeDetail(route.params.id)
         if (res) {
             recipe.value = res
+            // 加载评论
+            fetchComments()
         } else {
             error.value = '菜谱不存在'
         }
@@ -62,8 +76,67 @@ const fetchRecipe = async () => {
     }
 }
 
+// 加载评论
+const fetchComments = async () => {
+    loadingComments.value = true
+    try {
+        const res = await listComments({
+            page: 1,
+            size: 20,
+            recipeId: route.params.id
+        })
+        if (res?.records) {
+            comments.value = res.records
+        }
+    } catch (e) {
+        console.error('Failed to load comments', e)
+    } finally {
+        loadingComments.value = false
+    }
+}
+
+// 智能返回：新标签页打开时返回菜谱管理，否则正常返回
 const goBack = () => {
-    router.back()
+    if (window.history.length > 1) {
+        router.back()
+    } else {
+        router.push('/backstage-m9x2k7/recipes')
+    }
+}
+
+// 通过审核
+const handlePass = async () => {
+    const confirmed = await confirm('确定通过该菜谱审核吗？通过后将立即发布。')
+    if (!confirmed) return
+    
+    auditing.value = true
+    try {
+        await auditRecipe({ recipeId: recipe.value.id, action: 'pass' })
+        showToast('审核已通过，菜谱已发布', 'success')
+        recipe.value.status = 1
+    } catch (e) {
+        showToast(e.message || '操作失败', 'error')
+    } finally {
+        auditing.value = false
+    }
+}
+
+// 驳回审核
+const handleReject = async () => {
+    const reason = await prompt('请输入驳回原因：', { placeholder: '请详细说明驳回原因...' })
+    if (!reason) return
+    
+    auditing.value = true
+    try {
+        await auditRecipe({ recipeId: recipe.value.id, action: 'reject', reason })
+        showToast('已驳回该菜谱', 'success')
+        recipe.value.status = 2
+        recipe.value.rejectReason = reason
+    } catch (e) {
+        showToast(e.message || '操作失败', 'error')
+    } finally {
+        auditing.value = false
+    }
 }
 
 onMounted(() => {
@@ -87,12 +160,36 @@ onMounted(() => {
                     <div class="h-5 w-px bg-gray-300"></div>
                     <h1 class="text-lg font-semibold text-gray-800">菜谱预览</h1>
                 </div>
-                <span 
-                    v-if="recipe" 
-                    :class="['px-3 py-1 text-sm font-medium rounded-full border', statusInfo.class]"
-                >
-                    {{ statusInfo.label }}
-                </span>
+                
+                <div class="flex items-center gap-3">
+                    <!-- 审核操作按钮（仅待审核状态显示） -->
+                    <template v-if="isPending">
+                        <button 
+                            @click="handlePass"
+                            :disabled="auditing"
+                            class="flex items-center gap-1.5 px-4 py-2 bg-green-500 text-white text-sm font-medium rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+                        >
+                            <Check class="w-4 h-4" />
+                            通过
+                        </button>
+                        <button 
+                            @click="handleReject"
+                            :disabled="auditing"
+                            class="flex items-center gap-1.5 px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+                        >
+                            <X class="w-4 h-4" />
+                            驳回
+                        </button>
+                    </template>
+                    
+                    <!-- 状态标签 -->
+                    <span 
+                        v-if="recipe" 
+                        :class="['px-3 py-1 text-sm font-medium rounded-full border', statusInfo.class]"
+                    >
+                        {{ statusInfo.label }}
+                    </span>
+                </div>
             </div>
         </div>
 
@@ -125,7 +222,7 @@ onMounted(() => {
                     :src="recipe.coverImage" 
                     :alt="recipe.title"
                     class="w-full h-full object-cover"
-                    @error="e => e.target.src = 'https://via.placeholder.com/800x450?text=暂无图片'"
+                    @error="e => e.target.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22450%22%3E%3Crect fill=%22%23f3f4f6%22 width=%22800%22 height=%22450%22/%3E%3Ctext x=%22400%22 y=%22230%22 text-anchor=%22middle%22 fill=%22%239ca3af%22 font-size=%2224%22%3E暂无图片%3C/text%3E%3C/svg%3E'"
                 />
                 <div v-else class="w-full h-full flex items-center justify-center text-gray-400">
                     <ChefHat class="w-16 h-16" />
@@ -228,6 +325,54 @@ onMounted(() => {
                     <div>
                         <span class="text-gray-400">收藏数</span>
                         <p class="font-medium text-gray-700">{{ recipe.favoriteCount || 0 }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 评论列表 -->
+            <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                        <MessageSquare class="w-5 h-5 text-blue-500" />
+                        评论 ({{ comments.length }})
+                    </h3>
+                    <button 
+                        @click="router.push(`/backstage-m9x2k7/comments?recipeId=${recipe.id}`)"
+                        class="text-sm text-blue-500 hover:text-blue-600 font-medium"
+                    >
+                        在评论管理中查看
+                    </button>
+                </div>
+
+                <!-- 加载中 -->
+                <div v-if="loadingComments" class="py-6 text-center text-gray-400 text-sm">
+                    加载评论中...
+                </div>
+
+                <!-- 无评论 -->
+                <div v-else-if="comments.length === 0" class="py-8 text-center">
+                    <MessageSquare class="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                    <p class="text-gray-400 text-sm">暂无评论</p>
+                </div>
+
+                <!-- 评论列表 -->
+                <div v-else class="space-y-4 max-h-80 overflow-y-auto">
+                    <div 
+                        v-for="comment in comments" 
+                        :key="comment.id"
+                        class="flex gap-3 p-3 bg-gray-50 rounded-lg"
+                    >
+                        <img 
+                            :src="comment.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId}`" 
+                            class="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                        />
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm font-medium text-gray-700">{{ comment.userNickname || '用户' + comment.userId }}</span>
+                                <span class="text-xs text-gray-400">{{ formatDate(comment.createTime) }}</span>
+                            </div>
+                            <p class="text-sm text-gray-600">{{ comment.content }}</p>
+                        </div>
                     </div>
                 </div>
             </div>

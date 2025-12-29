@@ -5,7 +5,7 @@ import { useToast } from '@/components/Toast.vue'
 import { 
     Search, ChevronLeft, ChevronRight, Calendar, Filter, X,
     LogIn, Ban, CheckCircle, Trash2, Plus, Edit, FileCheck, FileX, ClipboardList,
-    RefreshCw, Settings
+    RefreshCw, Settings, XCircle
 } from 'lucide-vue-next'
 
 const { showToast } = useToast()
@@ -30,6 +30,7 @@ const pagination = ref({
 const operationTypes = [
     { value: '', label: '全部操作' },
     { value: 'ADMIN_LOGIN', label: '管理员登录' },
+    { value: 'ADMIN_LOGIN_FAILED', label: '管理员登录失败' },
     { value: 'USER_BAN', label: '封禁用户' },
     { value: 'USER_UNBAN', label: '解封用户' },
     { value: 'RECIPE_APPROVE', label: '审核通过菜谱' },
@@ -44,6 +45,7 @@ const operationTypes = [
 const getOperationIcon = (type) => {
     const icons = {
         'ADMIN_LOGIN': LogIn,
+        'ADMIN_LOGIN_FAILED': XCircle,
         'USER_BAN': Ban,
         'USER_UNBAN': CheckCircle,
         'RECIPE_APPROVE': FileCheck,
@@ -58,7 +60,7 @@ const getOperationIcon = (type) => {
 }
 
 const getOperationConfig = (type) => {
-    if (type.includes('DELETE') || type.includes('BAN') || type.includes('REJECT')) {
+    if (type.includes('DELETE') || type.includes('BAN') || type.includes('REJECT') || type.includes('FAILED')) {
         return { bg: 'bg-red-50', text: 'text-red-600', dot: 'bg-red-500' }
     }
     if (type.includes('ADD') || type.includes('APPROVE') || type.includes('UNBAN')) {

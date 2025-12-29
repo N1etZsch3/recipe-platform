@@ -87,18 +87,19 @@ class WebSocketManager {
         try {
             // 心跳响应
             if (data === 'pong') {
-                console.debug('WebSocket: 收到心跳响应')
+                // console.debug('WebSocket: 收到心跳响应')
                 return
             }
 
+            console.log('WebSocket [RAW]:', data)
             const message = JSON.parse(data)
-            console.log('WebSocket: 收到消息', message)
+            console.log('WebSocket [PARSED]: type=', message.type, ' content=', message)
 
             // 将消息传递给通知 store 处理
             const notificationStore = useNotificationStore()
             notificationStore.handleMessage(message)
         } catch (e) {
-            console.error('WebSocket: 解析消息失败', e)
+            console.error('WebSocket: 解析消息失败', e, 'RAW DATA:', data)
         }
     }
 

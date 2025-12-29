@@ -301,7 +301,7 @@ const handleSubmit = async () => {
             
             <!-- 用料清单 -->
             <div>
-                <label class="block text-sm font-bold text-gray-700 mb-2">🥬 用料清单</label>
+                <label class="block text-sm font-bold text-gray-700 mb-2">🥬 用料清单 <span class="text-red-500">*</span></label>
                 <div class="space-y-2">
                     <div v-for="(item, index) in form.ingredients" :key="index" class="flex gap-2 items-center">
                         <input 
@@ -332,7 +332,7 @@ const handleSubmit = async () => {
             
             <!-- 烹饪步骤 -->
             <div>
-                <label class="block text-sm font-bold text-gray-700 mb-2">👨‍🍳 烹饪步骤</label>
+                <label class="block text-sm font-bold text-gray-700 mb-2">👨‍🍳 烹饪步骤 <span class="text-red-500">*</span></label>
                 <div class="space-y-3">
                     <div v-for="(step, index) in form.steps" :key="index" class="flex gap-2 items-start">
                         <div class="w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-2">

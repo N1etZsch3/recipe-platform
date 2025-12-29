@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
+import { wsManager } from '@/utils/websocket' // Import wsManager
 import { listAuditRecipes } from '@/api/admin'
 import {
     LayoutDashboard,
@@ -16,7 +17,10 @@ import {
     ChevronRight,
     ChevronDown,
     Lock,
-    X
+    X,
+    Wifi,
+    WifiOff,
+    Bell
 } from 'lucide-vue-next'
 import NotificationCenter from '@/components/NotificationCenter.vue'
 import { changePassword } from '@/api/auth'
@@ -30,6 +34,24 @@ const notificationStore = useNotificationStore()
 const sidebarCollapsed = ref(false)
 const showUserMenu = ref(false)
 const showNotificationPanel = ref(false)
+const showSearch = ref(false)
+const wsConnected = ref(false)
+
+const updateWsStatus = () => {
+    wsConnected.value = wsManager.isConnected()
+}
+
+onMounted(() => {
+    updateWsStatus()
+    setInterval(updateWsStatus, 2000)
+    
+    // Also update count on mount
+    if (showNotificationPanel.value) {
+        listAuditRecipes({ page: 1, size: 5 }).then(res => {
+             // Logic exists in watcher but good to init
+        })
+    }
+})
 const todoList = ref([])
 const todoCount = ref(0)
 
@@ -88,6 +110,63 @@ const fetchTodos = async () => {
 watch(showNotificationPanel, (val) => {
     if (val) {
         fetchTodos()
+    }
+})
+
+// 监听新菜谱待审核通知，实时更新待办数量
+watch(() => notificationStore.latestNotification, (notification) => {
+    if (!notification) return
+
+    if (notification.type === 'NEW_RECIPE_PENDING') {
+        // 本地增量更新：直接增加待办数量
+        todoCount.value++
+        
+        // 尝试解析并添加到 todoList (如果它被使用的话)
+        // 注意：todoList 只有在 showNotificationPanel 为 true 时才会被 fetchTodos 覆盖
+        // 但我们也可以手动通过通知添加一个 item 到列表顶端，以备此时通过其他方式查看
+        // 不过 fetchTodos 会重置它。
+        
+        // 如果我们想实现增量更新列表而不刷新：
+        if (showNotificationPanel.value) {
+            // 面板开着，直接刷新简单
+            fetchTodos()
+        } else {
+            // 面板关着，我们可以预先插入数据，或者不做处理只加计数，等打开时 fetchTodos
+            // 但用户要是之前已经打开过一次导致 todoList 有数据，然后关掉，再收到通知，
+            // 此时 todoList 是旧的。再打开会触发 fetchTodos 吗？
+            // 看逻辑: watch(showNotificationPanel) -> fetchTodos
+            // 所以只要打开就会刷新。
+            // 唯一的问题是：如果面板正开着，fetchTodos 会被调用。
+            // 这里的逻辑已经有了：if (showNotificationPanel.value) fetchTodos()
+            
+            // 似乎不需要手动构造 item 插入 todoList，只要 fetchTodos 能取到最新数据即可。
+            // 但是！fetchTodos 是调用的 API。API 返回的数据是 DB 里的。
+            // 如果 Notification 到了，DB 是不是已经更新了？
+            // 是的，Notification 是在 Service 保存到 DB 之后发的。
+            // 所以 fetchTodos 是安全的。
+            
+            // 那么问题来了，用户反馈的是“新更新的预览的图片无法正常显示”。
+            // DashboardView 是手动构造的 item，没有走 API（为了实时性/不刷新页面）。
+            // 所以 DashboardView 必须手动设置 coverImage。我都改过了。
+            
+            // AdminLayout 的 NotificationCenter 下拉列表里的 todo list 也是通过 fetchTodos 获取的吗？
+            // 是的。
+            
+            // 等等，用户说的“新更新的预览”是指 Dashboard 的列表还是顶部下拉的列表？
+            // DashboardView 的截图里是待审核列表。
+            // 所以前面 DashboardView 的修改应该是核心。
+            
+            // 既然 AdminLayout 这里主要是 计数 和 列表刷新，没有手动构造 item，所以可能不需要改构造逻辑。
+            // 除非我也想在 AdminLayout 做纯前端增量更新而不调 API。
+            // 但这里目前的逻辑是 if (showNotificationPanel) fetchTodos()。
+        }
+    } else if (notification.type === 'RECIPE_WITHDRAWN') {
+        // 撤销通知：减少待办数量
+        if (todoCount.value > 0) {
+            todoCount.value--
+        }
+        // 同时从列表中移除
+        todoList.value = todoList.value.filter(item => item.id !== notification.relatedId)
     }
 })
 
@@ -302,7 +381,17 @@ const breadcrumbs = computed(() => {
                 </div>
 
                 <!-- 右侧工具栏 -->
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-3">
+                    <!-- WebSocket Status -->
+                    <div 
+                        class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-help"
+                        :class="wsConnected ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'"
+                        :title="wsConnected ? '实时连接正常' : '实时连接断开'"
+                    >
+                        <component :is="wsConnected ? Wifi : WifiOff" class="w-3.5 h-3.5" />
+                        <span class="hidden sm:inline">{{ wsConnected ? '已连接' : '未连接' }}</span>
+                    </div>
+
                     <!-- 通知按钮 -->
                     <div class="relative">
                         <button 
@@ -347,7 +436,7 @@ const breadcrumbs = computed(() => {
                                                 class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition"
                                             >
                                                 <img 
-                                                    :src="item.coverImage || 'https://via.placeholder.com/40'" 
+                                                    :src="item.coverImage || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22%3E%3Crect fill=%22%23f3f4f6%22 width=%2240%22 height=%2240%22/%3E%3C/svg%3E'" 
                                                     class="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-gray-100"
                                                 />
                                                 <div class="flex-1 min-w-0">

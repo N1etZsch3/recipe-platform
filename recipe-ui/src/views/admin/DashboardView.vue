@@ -400,10 +400,44 @@ const getActivityColor = (action) => {
 
 // 监听新菜谱待审核通知
 watch(() => notificationStore.latestNotification, (notification) => {
+    console.log('DashboardView: Notification Watcher Triggered', notification)
     if (!notification) return
+    
+    console.log('DashboardView: Check Type:', notification.type, notification.type === 'NEW_RECIPE_PENDING')
+    
     if (notification.type === 'NEW_RECIPE_PENDING') {
-        fetchDashboard()
-        fetchPendingRecipes()
+        // ...
+        // 本地增量更新：直接更新统计数和列表，无需重新请求API
+        dashboard.value.pendingRecipes++
+        
+        // 构造新条目
+        const newRecipe = {
+            id: notification.relatedId,
+            title: notification.content.match(/「(.*?)」/)?.[1] || '无标题',
+            authorName: notification.senderName,
+            authorAvatar: notification.senderAvatar,
+            // 优先使用imageUrl (WebSocketMessage中定义的字段)，兼容coverImage
+            coverImage: notification.imageUrl || notification.coverImage, 
+            createTime: notification.timestamp,
+            status: 0 // 待审核
+        }
+        
+        // 添加到列表头
+        pendingRecipes.value.unshift(newRecipe)
+        if (pendingRecipes.value.length > 5) {
+            pendingRecipes.value.pop()
+        }
+        
+        console.log('DashboardView: 已添加待审核菜谱', notification.relatedId, newRecipe)
+    } else if (notification.type === 'RECIPE_WITHDRAWN') {
+        console.log('DashboardView: Handling RECIPE_WITHDRAWN', notification)
+        // 撤销/删除通知：待办数减一，从列表中移除
+        if (dashboard.value.pendingRecipes > 0) {
+            dashboard.value.pendingRecipes--
+        }
+        pendingRecipes.value = pendingRecipes.value.filter(item => item.id !== notification.relatedId)
+        
+        // 如果列表空了，可能需要补位（这里暂不处理，只移除）
     }
 })
 
@@ -541,10 +575,10 @@ onMounted(() => {
                     >
                         <div class="relative">
                             <img 
-                                :src="user.avatar || 'https://via.placeholder.com/40'" 
+                                :src="user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`" 
                                 :alt="user.nickname"
                                 class="w-9 h-9 rounded-full object-cover ring-2 ring-gray-100"
-                                @error="e => e.target.src = 'https://via.placeholder.com/40'"
+                                @error="e => e.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`"
                             />
                             <span v-if="index < 3" :class="[
                                 'absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-white',
@@ -649,7 +683,7 @@ onMounted(() => {
                     <img 
                         :src="recipe.coverImage" 
                         class="w-12 h-12 rounded-lg object-cover bg-gray-200 flex-shrink-0"
-                        @error="e => e.target.src = 'https://via.placeholder.com/48'"
+                        @error="e => e.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=default`"
                     />
                     <div class="flex-1 min-w-0">
                         <h4 class="font-medium text-gray-800 truncate text-sm">{{ recipe.title }}</h4>

@@ -114,7 +114,7 @@ const handleDelete = async (comment) => {
 }
 
 const viewRecipe = (recipeId) => {
-    window.open(`/recipe/${recipeId}`, '_blank')
+    window.open(`/backstage-m9x2k7/recipe/${recipeId}`, '_blank')
 }
 
 // Selection Logic

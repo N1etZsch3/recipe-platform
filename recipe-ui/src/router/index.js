@@ -135,7 +135,7 @@ const router = createRouter({
     ]
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
     const userStore = useUserStore()
     const token = userStore.token
 
@@ -144,13 +144,25 @@ router.beforeEach((to, from, next) => {
         return next({ name: 'home' })
     }
 
-    // 1. Check Auth (跳过管理员登录页)
-    if (to.meta.requiresAuth && !token) {
-        // 如果是访问管理后台，跳转到管理员登录页
-        if (to.path.startsWith('/backstage-m9x2k7')) {
-            return next({ name: 'admin-login' })
+    // 1. 需要认证的页面：验证 token 有效性
+    if (to.meta.requiresAuth) {
+        if (!token) {
+            // 无 token，跳转登录
+            if (to.path.startsWith('/backstage-m9x2k7')) {
+                return next({ name: 'admin-login' })
+            }
+            return next({ name: 'login', query: { redirect: to.fullPath } })
         }
-        return next({ name: 'login', query: { redirect: to.fullPath } })
+
+        // 有 token，验证有效性
+        const isValid = await userStore.validateToken()
+        if (!isValid) {
+            // Token 无效或过期
+            if (to.path.startsWith('/backstage-m9x2k7')) {
+                return next({ name: 'admin-login' })
+            }
+            return next({ name: 'login', query: { redirect: to.fullPath } })
+        }
     }
 
     // 2. Check Admin

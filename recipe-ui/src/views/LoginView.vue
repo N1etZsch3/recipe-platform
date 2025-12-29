@@ -91,10 +91,10 @@ const handleSubmit = async () => {
       return
     }
     
-    // 密码验证：数字字母下划线
-    const passwordRegex = /^[a-zA-Z0-9_]+$/
+    // 密码验证：6-20位，数字字母下划线
+    const passwordRegex = /^[a-zA-Z0-9_]{6,20}$/
     if (!passwordRegex.test(form.value.password)) {
-      showToast('密码只能包含字母、数字和下划线')
+      showToast('密码必须为6-20位，只能包含字母、数字和下划线')
       return
     }
   }
@@ -220,7 +220,7 @@ const handleVisitor = () => {
                 v-model="form.password" 
                 type="password" 
                 class="w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-200 transition bg-gray-50 focus:bg-white"
-                :placeholder="isLogin ? '请输入密码' : '字母、数字或下划线'"
+                :placeholder="isLogin ? '请输入密码' : '6-20位字母、数字或下划线'"
               >
             </div>
           </div>

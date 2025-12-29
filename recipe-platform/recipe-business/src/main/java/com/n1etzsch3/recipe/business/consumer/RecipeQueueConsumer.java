@@ -160,7 +160,8 @@ public class RecipeQueueConsumer {
                 String authorName = author != null ? author.getNickname() : "用户" + userId;
 
                 // 通知管理员有新菜谱待审核
-                notificationService.sendNewRecipePending(recipeId, recipe.getTitle(), userId, authorName);
+                notificationService.sendNewRecipePending(recipeId, recipe.getTitle(), userId, authorName,
+                        recipe.getCoverImage());
 
                 log.info("菜谱预审通过，已进入待审核队列: recipeId={}, title={}", recipeId, recipe.getTitle());
             } else {

@@ -141,9 +141,10 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail("账号已被封禁");
         }
 
-        // 5. 禁止管理员通过普通接口登录
-        if (UserConstants.ROLE_ADMIN.equals(user.getRole())) {
-            return Result.fail("管理员请使用专用入口登录");
+        // 5. 禁止管理员通过普通接口登录（返回通用错误信息，不暴露管理员身份）
+        if (UserConstants.ROLE_ADMIN.equals(user.getRole())
+                || UserConstants.ROLE_COMMON_ADMIN.equals(user.getRole())) {
+            return Result.fail("用户名或密码错误");
         }
 
         return Result.ok(user);

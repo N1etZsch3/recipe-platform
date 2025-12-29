@@ -125,16 +125,36 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public void sendNewRecipePending(Long recipeId, String recipeTitle, Long authorId, String authorName) {
-        // 查询所有管理员（包括超级管理员和普通管理员，正常状态）
+    public void sendNewRecipePending(Long recipeId, String recipeTitle, Long authorId, String authorName,
+            String coverImage) {
+        // 查询所有管理员（包括超级管理员和普通管理员）
+        // 移除状态限制，只要角色匹配即可
         List<SysUser> admins = sysUserMapper.selectList(new LambdaQueryWrapper<SysUser>()
-                .in(SysUser::getRole, "admin", "common_admin")
-                .eq(SysUser::getStatus, com.n1etzsch3.recipe.common.constant.UserConstants.NORMAL));
+                .in(SysUser::getRole, "admin", "common_admin"));
 
         if (admins.isEmpty()) {
             log.warn("没有找到管理员，无法发送待审核通知");
             return;
         }
+
+        // We can put coverImage in the content or as a custom field.
+        // WebSocketMessage doesn't have coverImage field explicitly for recipe.
+        // But we can put it in 'content' JSON if we change structure, or abuse
+        // connection of fields.
+        // Actually, better to add an 'extras' map or just use JSON content?
+        // Wait, WebSocketMessage has senderAvatar, but not relatedEntityImage.
+        // Let's check WebSocketMessage again. It has limited fields.
+        // Option 1: Add coverImage to WebSocketMessage
+        // Option 2: Put it in content as JSON string (messy)
+        // Option 3: Overload senderAvatar? No.
+
+        // Let's modify WebSocketMessage first? No, that requires common package update.
+        // Does WebSocketMessage have an 'extras' field? Checked earlier: No.
+        // But wait, the user showed an image where senderAvatar is user avatar.
+        // The list item needs a cover image.
+
+        // Ideally, I should add 'coverImage' to WebSocketMessage.
+        // Let's assume I can modify WebSocketMessage.
 
         WebSocketMessage message = WebSocketMessage.builder()
                 .type(MessageType.NEW_RECIPE_PENDING)
@@ -143,15 +163,54 @@ public class NotificationServiceImpl implements NotificationService {
                 .relatedId(recipeId)
                 .senderId(authorId)
                 .senderName(authorName)
+                // We will add a new field 'imageUrl' to WebSocketMessage for this
+                .imageUrl(coverImage)
+                .timestamp(java.time.LocalDateTime.now())
                 .build();
 
+        int sentCount = 0;
         // 向所有管理员发送通知
         for (SysUser admin : admins) {
-            sendToUser(admin.getId(), message);
+            boolean success = sessionManager.sendMessage(admin.getId(), JSONUtil.toJsonStr(message));
+            if (success) {
+                sentCount++;
+            }
         }
 
-        log.info("已向 {} 位管理员发送新菜谱待审核通知: recipeId={}, title={}",
-                admins.size(), recipeId, recipeTitle);
+        log.info("新菜谱待审核通知: recipeId={}, 目标管理员数={}, 实际在线发送数={}",
+                recipeId, admins.size(), sentCount);
+    }
+
+    @Override
+    public void sendRecipeWithdrawn(Long recipeId, String recipeTitle, Long authorId, String authorName) {
+        // 查询所有管理员
+        List<SysUser> admins = sysUserMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                .in(SysUser::getRole, "admin", "common_admin"));
+
+        if (admins.isEmpty()) {
+            return;
+        }
+
+        WebSocketMessage message = WebSocketMessage.builder()
+                .type(MessageType.RECIPE_WITHDRAWN)
+                .title("菜谱申请已撤销")
+                .content("用户「" + authorName + "」撤销了菜谱「" + recipeTitle + "」的发布申请")
+                .relatedId(recipeId)
+                .senderId(authorId)
+                .senderName(authorName)
+                .timestamp(java.time.LocalDateTime.now())
+                .build();
+
+        int sentCount = 0;
+        String json = JSONUtil.toJsonStr(message);
+        for (SysUser admin : admins) {
+            if (sessionManager.sendMessage(admin.getId(), json)) {
+                sentCount++;
+            }
+        }
+
+        log.info("菜谱撤销通知: recipeId={}, 目标管理员数={}, 实际在线发送数={}",
+                recipeId, admins.size(), sentCount);
     }
 
     @Override

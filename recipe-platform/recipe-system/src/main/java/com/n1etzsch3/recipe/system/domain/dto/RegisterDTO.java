@@ -14,6 +14,7 @@ public class RegisterDTO {
     private String username;
 
     @NotBlank(message = "密码不能为空")
+    @Size(min = 6, max = 20, message = "密码必须为6-20位")
     @Pattern(regexp = "^[a-zA-Z0-9_]+$", message = "密码只能包含字母、数字和下划线")
     private String password;
 

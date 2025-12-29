@@ -196,8 +196,11 @@ const handleSubmit = async () => {
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">个人简介</label>
-                    <textarea v-model="form.intro" rows="3" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition resize-none" placeholder="写点什么介绍自己..."></textarea>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5 flex justify-between">
+                        <span>个人简介</span>
+                        <span class="text-xs font-normal text-gray-400">{{ form.intro?.length || 0 }}/200</span>
+                    </label>
+                    <textarea v-model="form.intro" rows="3" maxlength="200" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition resize-none" placeholder="写点什么介绍自己...（最多200字）"></textarea>
                 </div>
             </div>
 

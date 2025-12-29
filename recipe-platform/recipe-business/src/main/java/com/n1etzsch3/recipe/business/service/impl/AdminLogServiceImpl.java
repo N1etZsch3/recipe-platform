@@ -126,6 +126,27 @@ public class AdminLogServiceImpl implements AdminLogService {
         return Result.ok(dtoPage);
     }
 
+    @Override
+    public void logLogin(Long adminId, String adminName, boolean success, String detail) {
+        try {
+            AdminOperationLog logEntity = new AdminOperationLog();
+            logEntity.setAdminId(adminId);
+            logEntity.setAdminName(adminName);
+            logEntity.setOperationType(success ? "ADMIN_LOGIN" : "ADMIN_LOGIN_FAILED");
+            logEntity.setTargetType("auth");
+            logEntity.setTargetId(null);
+            logEntity.setTargetName(null);
+            logEntity.setDetail(detail);
+            logEntity.setIpAddress(getClientIp());
+            logEntity.setCreateTime(LocalDateTime.now());
+
+            logMapper.insert(logEntity);
+            log.info("登录日志记录: admin={}, success={}, ip={}", adminName, success, logEntity.getIpAddress());
+        } catch (Exception e) {
+            log.error("记录登录日志失败", e);
+        }
+    }
+
     /**
      * 获取客户端 IP 地址
      */

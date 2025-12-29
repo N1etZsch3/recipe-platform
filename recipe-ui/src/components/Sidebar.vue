@@ -13,7 +13,8 @@ import {
   Info,
   Mail,
   LogOut,
-  X
+  X,
+  Shield
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -74,6 +75,18 @@ const handleLogout = async () => {
     router.push('/login')
   }
 }
+
+// 进入管理后台
+const handleAdminPanel = () => {
+  showMoreMenu.value = false
+  router.push('/backstage-m9x2k7')
+}
+
+// 是否显示管理后台入口
+const showAdminEntry = computed(() => {
+  const role = userStore.user?.role
+  return role === 'admin' || role === 'common_admin'
+})
 
 // 点击外部关闭更多菜单
 const closeMoreMenu = () => {
@@ -209,6 +222,16 @@ const getAvatarUrl = computed(() => {
           >
             <LogOut class="w-4 h-4" />
             退出
+          </button>
+          
+          <!-- 管理后台入口（仅管理员显示） -->
+          <button
+            v-if="showAdminEntry"
+            @click="handleAdminPanel"
+            class="w-full flex items-center gap-3 px-4 py-3 text-sm text-purple-600 hover:bg-purple-50 transition border-t border-gray-100"
+          >
+            <Shield class="w-4 h-4" />
+            管理后台
           </button>
         </div>
       </Transition>
