@@ -130,15 +130,13 @@ public class RecipeQueueConsumer {
             RecipeInfo recipe = recipeInfoMapper.selectById(recipeId);
             if (recipe == null) {
                 log.warn("菜谱不存在，跳过: recipeId={}", recipeId);
-                acknowledge(record);
-                return;
+                return; // finally will ACK
             }
 
             // 只处理「处理中」状态的菜谱
             if (recipe.getStatus() != RecipeConstants.STATUS_PROCESSING) {
                 log.debug("菜谱状态不是处理中，跳过: recipeId={}, status={}", recipeId, recipe.getStatus());
-                acknowledge(record);
-                return;
+                return; // finally will ACK
             }
 
             // 获取步骤信息用于验证
@@ -177,12 +175,26 @@ public class RecipeQueueConsumer {
                 log.info("菜谱预审未通过，已退回草稿: recipeId={}, reason={}", recipeId, result.getReason());
             }
 
-            // 确认消息处理完成
-            acknowledge(record);
-
         } catch (Exception e) {
             log.error("处理菜谱 {} 失败: {}", recipeId, e.getMessage(), e);
-            // 不 ACK，让消息保留在 pending 列表中，后续可以重试
+            // 兜底处理：尝试更新状态为草稿，避免用户卡在"处理中"
+            try {
+                RecipeInfo recipe = recipeInfoMapper.selectById(recipeId);
+                if (recipe != null && recipe.getStatus() == RecipeConstants.STATUS_PROCESSING) {
+                    recipe.setStatus(RecipeConstants.STATUS_DRAFT);
+                    recipe.setRejectReason("系统处理异常，请稍后重新提交");
+                    recipe.setUpdateTime(LocalDateTime.now());
+                    recipeInfoMapper.updateById(recipe);
+                    // 通知用户
+                    notificationService.sendRecipeRejected(userId, recipeId, recipe.getTitle(), "系统处理异常，请稍后重新提交");
+                    log.warn("菜谱 {} 已通过兜底逻辑退回草稿", recipeId);
+                }
+            } catch (Exception fallbackEx) {
+                log.error("兜底处理也失败: recipeId={}, error={}", recipeId, fallbackEx.getMessage());
+            }
+        } finally {
+            // 无论成功或失败，都确认消息，避免消息堆积
+            acknowledge(record);
         }
     }
 

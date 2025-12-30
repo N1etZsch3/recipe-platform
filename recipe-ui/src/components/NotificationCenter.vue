@@ -122,6 +122,13 @@ const handleItemClick = (item) => {
         } else {
             router.push('/messages?type=system')
         }
+    } else if (item.type === 'NEW_RECIPE_PENDING') {
+        // 新菜谱待审核通知 - 跳转到管理后台菜谱预览
+        if (item.relatedId) {
+            router.push(`/backstage-m9x2k7/recipe/${item.relatedId}`)
+        } else {
+            router.push('/backstage-m9x2k7/recipes?status=0')
+        }
     } else if (item.type === 'AUDIT_PASS' || item.type === 'AUDIT_REJECT' || item.type === 'RECIPE_APPROVED' || item.type === 'RECIPE_REJECTED' || item.type === 'COMMENT_DELETED') {
         // 审核/系统通知 - 跳转到消息中心系统通知分类
         router.push('/messages?type=system')

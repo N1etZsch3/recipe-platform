@@ -37,14 +37,16 @@ const statusOptions = [
     { value: '', label: '全部状态' },
     { value: 0, label: '待审核' },
     { value: 1, label: '已发布' },
-    { value: 2, label: '已驳回' }
+    { value: 2, label: '已驳回' },
+    { value: 5, label: '已下架' }
 ]
 
 const getStatusConfig = (status) => {
     const configs = {
         0: { bg: 'bg-amber-50', text: 'text-amber-600', dot: 'bg-amber-500', label: '待审核' },
         1: { bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-500', label: '已发布' },
-        2: { bg: 'bg-red-50', text: 'text-red-600', dot: 'bg-red-500', label: '已驳回' }
+        2: { bg: 'bg-red-50', text: 'text-red-600', dot: 'bg-red-500', label: '已驳回' },
+        5: { bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400', label: '已下架' }
     }
     return configs[status] || { bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400', label: '未知' }
 }
@@ -122,14 +124,14 @@ const rejectRecipe = async (id) => {
     }
 }
 
-// 下架菜谱（将已发布改为待审核）
+// 下架菜谱（将已发布改为已下架）
 const unpublishRecipe = async (recipe) => {
-    const confirmed = await confirm(`确定要下架菜谱"${recipe.title}"吗？下架后将变为待审核状态。`)
+    const confirmed = await confirm(`确定要下架菜谱"${recipe.title}"吗？下架后作者可以进行编辑。`)
     if (!confirmed) return
     
     try {
-        await batchUpdateRecipeStatus({ ids: [recipe.id], status: 0 })
-        recipe.status = 0
+        await batchUpdateRecipeStatus({ ids: [recipe.id], status: 5 })
+        recipe.status = 5
         showToast('下架成功')
     } catch (error) {
         console.error(error)
@@ -198,7 +200,7 @@ const handleBatchUnpublish = async () => {
     if (!confirmed) return
     
     try {
-        await batchUpdateRecipeStatus({ ids: selectedIds.value, status: 0 })
+        await batchUpdateRecipeStatus({ ids: selectedIds.value, status: 5 })
         showToast('批量下架成功')
         fetchRecipes()
     } catch (error) {

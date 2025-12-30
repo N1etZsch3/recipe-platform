@@ -36,7 +36,8 @@ const statusMap = {
     1: { label: '已发布', class: 'bg-green-100 text-green-700 border-green-200' },
     2: { label: '已驳回', class: 'bg-red-100 text-red-700 border-red-200' },
     3: { label: '草稿', class: 'bg-gray-100 text-gray-600 border-gray-200' },
-    4: { label: '处理中', class: 'bg-blue-100 text-blue-700 border-blue-200' }
+    4: { label: '处理中', class: 'bg-blue-100 text-blue-700 border-blue-200' },
+    5: { label: '已下架', class: 'bg-gray-200 text-gray-700 border-gray-300' }
 }
 
 const statusInfo = computed(() => statusMap[recipe.value?.status] || statusMap[0])

@@ -359,12 +359,13 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
         if (!recipe.getUserId().equals(userId))
             return Result.fail("无权修改");
 
-        // 只有 待审核 和 驳回 可以修改
+        // 只有 待审核、驳回、已下架、草稿 可以修改
         if (recipe.getStatus() == RecipeConstants.STATUS_PUBLISHED)
             return Result.fail("已发布菜谱无法直接修改，请申请下架");
 
         BeanUtil.copyProperties(publishDTO, recipe);
         recipe.setStatus(RecipeConstants.STATUS_PENDING); // 修改后重新审核
+        recipe.setUpdateTime(LocalDateTime.now());
         this.updateById(recipe);
 
         // 删除旧的 steps/ingredients 重新插入
@@ -443,14 +444,11 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeInfoMapper, RecipeInfo>
             return Result.fail("只有已发布的菜谱才能下架");
         }
 
-        // 将状态改为待审核
-        recipe.setStatus(RecipeConstants.STATUS_PENDING);
+        // 将状态改为已下架（而非待审核），不发送通知
+        // 用户编辑后重新提交时才会进入审核队列
+        recipe.setStatus(RecipeConstants.STATUS_UNPUBLISHED);
+        recipe.setUpdateTime(LocalDateTime.now());
         this.updateById(recipe);
-
-        // 下架变成待审核，也应该通知管理员
-        SysUser author = sysUserMapper.selectById(userId);
-        String authorName = author != null ? author.getNickname() : "用户" + userId;
-        notificationService.sendNewRecipePending(id, recipe.getTitle(), userId, authorName, recipe.getCoverImage());
 
         return Result.ok("下架成功，您现在可以编辑菜谱了");
     }

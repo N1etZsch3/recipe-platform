@@ -357,14 +357,14 @@ const deleteRecipe = async (id) => {
 
 // 下架菜谱
 const unpublishRecipe = async (id) => {
-    const confirmed = await confirm('下架后菜谱将变为待审核状态，您可以进行编辑。确定下架吗？')
+    const confirmed = await confirm('下架后您可以对菜谱进行编辑。编辑完成后重新提交即可进入审核。确定下架吗？')
     if (confirmed) {
         try {
             await unpublishRecipeApi(id)
             // 更新本地状态
             const recipe = myRecipes.value.find(r => r.id === id)
             if (recipe) {
-                recipe.status = 0 // 改为待审核
+                recipe.status = 5 // 改为已下架
             }
             showToast('下架成功，您现在可以编辑菜谱了')
         } catch (error) {
@@ -391,6 +391,16 @@ const withdrawRecipe = async (id) => {
             showToast(msg)
         }
     }
+}
+
+// 处理收藏菜谱点击
+const handleFavoriteClick = (recipe) => {
+    // 已下架菜谱显示提示，不跳转
+    if (recipe.status === 5) {
+        showToast('该菜谱已下架，暂时无法查看')
+        return
+    }
+    router.push(`/recipe/${recipe.id}`)
 }
 </script>
 
@@ -470,6 +480,7 @@ const withdrawRecipe = async (id) => {
                               <span v-else-if="r.status === 0" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded font-medium border border-yellow-200">审核中</span>
                               <span v-else-if="r.status === 3" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-medium border border-gray-200">草稿</span>
                               <span v-else-if="r.status === 4" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-medium border border-blue-200">处理中</span>
+                              <span v-else-if="r.status === 5" class="text-xs bg-gray-300 text-gray-700 px-2 py-1 rounded font-medium border border-gray-400">已下架</span>
                               <div v-else-if="r.status === 2" class="text-right">
                                   <span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-medium border border-red-200">未通过</span>
                                   <p class="text-[10px] text-red-500 mt-1 max-w-[150px] truncate" :title="r.rejectReason">{{ r.rejectReason }}</p>
@@ -525,16 +536,30 @@ const withdrawRecipe = async (id) => {
               </div>
               
               <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div v-for="r in myFavorites" :key="r.id" @click="router.push(`/recipe/${r.id}`)" class="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition cursor-pointer group flex flex-col">
+                  <div 
+                      v-for="r in myFavorites" 
+                      :key="r.id" 
+                      @click="handleFavoriteClick(r)" 
+                      class="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition cursor-pointer group flex flex-col"
+                  >
                       <div class="h-40 overflow-hidden relative">
-                          <img :src="r.coverImage" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                          <!-- 已下架菜谱显示灰色占位符 -->
+                          <template v-if="r.status === 5">
+                              <div class="w-full h-full bg-gray-200 flex flex-col items-center justify-center">
+                                  <ChefHat class="w-10 h-10 text-gray-400 mb-2" />
+                                  <span class="text-gray-500 font-medium text-sm">菜谱已下架</span>
+                              </div>
+                          </template>
+                          <template v-else>
+                              <img :src="r.coverImage" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                          </template>
                           <div class="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded text-xs font-bold text-orange-500 flex items-center gap-1">
                                <Heart class="w-3 h-3 fill-current" /> 已收藏
                           </div>
                       </div>
                       <div class="p-4 flex-1 flex flex-col justify-between">
                           <div>
-                               <h4 class="font-bold text-gray-800 mb-2 line-clamp-1" :title="r.title">{{ r.title }}</h4>
+                               <h4 class="font-bold text-gray-800 mb-2 line-clamp-1" :class="{ 'text-gray-400': r.status === 5 }" :title="r.title">{{ r.title }}</h4>
                                <div class="flex items-center gap-2 text-xs text-gray-500">
                                   <UserAvatar 
                                     :src="r.authorAvatar" 

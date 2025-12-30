@@ -17,6 +17,9 @@ public class RecipeConstants {
     /** 状态：处理中（队列处理阶段） */
     public static final int STATUS_PROCESSING = 4;
 
+    /** 状态：已下架（用户或管理员主动下架） */
+    public static final int STATUS_UNPUBLISHED = 5;
+
     /** 用户待审核菜谱最大数量 */
     public static final int MAX_PENDING_RECIPES = 10;
 
